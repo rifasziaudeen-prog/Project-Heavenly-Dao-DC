@@ -261,13 +261,36 @@ cogs/           Slash-command modules (alchemy, auction, cultivation, dao_bonds,
                 heaven_panel, items, passive_qi, reincarnation, secret_realms, sects, world_events)
 core/           Deterministic math, template engine, Groq client, anti-cheat,
                 alchemy, auction, dao_bonds, dao_laws, items, reincarnation, secret_realms, sects, world_events
-db/             Async SQLite & PostgreSQL layers (sqlite.py, postgres.py), migration runner, queries
-migrations/     Versioned SQL migrations (001_init to 010_auction_house, postgres/011_postgres_schema)
-scripts/        Automation scripts (setup_discord_server.py, migrate_sqlite_to_postgres.py, validate_migration.py)
+db/             Async SQLite & PostgreSQL layers (database.py, postgres.py), migration runner, queries
+migrations/     Versioned SQL migrations (001_init to 012_spiritual_aptitudes; postgres/011 + 012)
+scripts/        Automation scripts (setup_discord_server.py, migrate_sqlite_to_postgres.py,
+                validate_migration.py, github_backup.py)
 templates/      Narrative fragment JSON — add files to extend flavor
-config/         Env-driven settings (postgres.py, settings.py)
-tests/          pytest suite (119 tests covering balance, bonds, sects, items, alchemy, reincarnation, secret realms, world events, dao laws, auction, postgres, migrations)
+config/         Env-driven settings (default.py, postgres.py)
+tests/          pytest suite (167 tests covering balance, bonds, sects, items, alchemy, reincarnation,
+                secret realms, world events, dao laws, auction, affinities, postgres, migrations, github backup)
 ```
+
+## Backups & disaster recovery
+
+* **Daily snapshots** — the bot writes `backups/heavenly_dao_YYYY-MM-DD.db` via
+  `db/database.py::backup_database` (idempotent — one per day).
+* **Off-server GitHub mirror** — `scripts/github_backup.py` pushes each daily
+  snapshot to a dedicated branch in a GitHub repository using the Contents API
+  (no git install needed on the host, `aiohttp` only). Configure it in `.env`:
+  `GITHUB_BACKUP_TOKEN`, `GITHUB_BACKUP_REPO`, `GITHUB_BACKUP_BRANCH`,
+  `GITHUB_BACKUP_KEEP` (see `.env.example`). It runs automatically after every
+  daily snapshot, prunes old snapshots, and can be run manually:
+
+  ```bash
+  python scripts/github_backup.py
+  ```
+
+  > **Security:** the database contains player data — point
+  > `GITHUB_BACKUP_REPO` at a **PRIVATE** repo and scope the token to it.
+* **Why**: a free hosting provider can purge your server (e.g. wispbyte's
+  14-day inactivity rule). Your code lives on GitHub — and now so do your
+  player-data snapshots.
 
 ## Testing
 
@@ -280,6 +303,7 @@ tests/          pytest suite (119 tests covering balance, bonds, sects, items, a
 * **`README.md`** — this file: setup, commands, design, roadmap
 * **`CHANGELOG.md`** — version history (Keep a Changelog format)
 * **`MIGRATION.md`** — SQLite → PostgreSQL path and the P0 schema decisions
+* **`DEPLOY_WISPBYTE.md`** — free 24/7 hosting walkthrough (wispbyte)
 * **`.env.example`** — annotated template for every environment variable
 
 ## Troubleshooting

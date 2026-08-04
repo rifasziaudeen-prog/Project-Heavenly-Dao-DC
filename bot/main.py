@@ -245,6 +245,14 @@ class HeavenlyDaoBot(commands.Bot):
         dest = await backup_database(self.db)
         if dest:
             log.info("Daily backup written to %s", dest)
+        # Best-effort off-server mirror (needs GITHUB_BACKUP_* in .env; skipped otherwise).
+        try:
+            from scripts import github_backup as gh_backup
+
+            message = await gh_backup.run_mirror()
+            log.info("GitHub backup mirror: %s", message)
+        except Exception:
+            log.exception("GitHub backup mirror failed")
 
     @tasks.loop(seconds=config.MARKET_EXPIRY_POLL_SECONDS)
     async def market_expiry_loop(self) -> None:

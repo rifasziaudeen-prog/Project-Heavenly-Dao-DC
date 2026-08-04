@@ -36,6 +36,12 @@ MIGRATIONS_DIR: Path = BASE_DIR / "migrations"
 TEMPLATES_DIR: Path = BASE_DIR / "templates"
 BACKUP_DIR: Path = _as_path(os.getenv("BACKUP_DIR", "backups"))
 
+# --- Off-server GitHub backup mirror (best-effort; see scripts/github_backup.py) ---
+GITHUB_BACKUP_TOKEN: str = os.getenv("GITHUB_BACKUP_TOKEN", "")
+GITHUB_BACKUP_REPO: str = os.getenv("GITHUB_BACKUP_REPO", "")  # "owner/repo" — use a PRIVATE repo
+GITHUB_BACKUP_BRANCH: str = os.getenv("GITHUB_BACKUP_BRANCH", "db-backups")
+GITHUB_BACKUP_KEEP: int = _as_int(os.getenv("GITHUB_BACKUP_KEEP")) or 14
+
 # --- Groq free tier (disabled by default; $0 budget) ------------------------
 ENABLE_GROQ: bool = os.getenv("ENABLE_GROQ", "false").strip().lower() == "true"
 GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")

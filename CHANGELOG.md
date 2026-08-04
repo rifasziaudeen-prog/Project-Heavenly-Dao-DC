@@ -5,6 +5,18 @@ All notable changes to the **Heavenly Dao Engine** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] — 2026-08-05 — Off-Server Disaster Recovery & Deployment Docs 🛡️
+
+### Added
+
+- **Off-server GitHub backup mirror** (`scripts/github_backup.py`): every daily SQLite snapshot in `backups/` is now pushed to a dedicated `db-backups` branch in a GitHub repository via the Contents API (`aiohttp` — no new dependencies, no git install needed on the host). Configurable via `GITHUB_BACKUP_TOKEN` / `GITHUB_BACKUP_REPO` / `GITHUB_BACKUP_BRANCH` / `GITHUB_BACKUP_KEEP` in `.env` (best-effort — logs "mirror skipped" when unconfigured). Wired into the daily `backup_loop` (`bot/main.py`); the branch is auto-created from the default branch and old snapshots are pruned automatically (newest 14 kept by default). Tested end-to-end against a fake GitHub API.
+- **`DEPLOY_WISPBYTE.md`** — full free 24/7 hosting guide for wispbyte: panel setup (Python image, free plan), SFTP upload layout, the complete `.env`, startup command, first-boot verification checklist, daily operations, and troubleshooting.
+
+### Fixed
+
+- **README project-layout drift**: `db/sqlite.py` → `db/database.py`, `config/settings.py` → `config/default.py`, migration list now includes 012 (both `migrations/` and `migrations/postgres/`), and the test count was updated from the stale 119.
+- Tests: 7 new (`tests/test_github_backup.py`). Total **167 tests passing**.
+
 ## [1.1.0] — 2026-08-04 — Spiritual Aptitudes & Martial Intent Engine 🎉
 
 ### Fixed — Auction House seller commands completed (`cogs/auction.py`)
