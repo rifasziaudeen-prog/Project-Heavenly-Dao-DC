@@ -162,9 +162,10 @@ class DaoConfigCog(commands.Cog):
         await interaction.response.defer(ephemeral=False)
 
         try:
-            from scripts.setup_discord_server import ROLES_SPEC, STRUCTURE
+            from scripts.setup_discord_server import apply_server_setup
+            from core.server_layout import ANNOUNCEMENTS_CHANNEL
         except ImportError:
-            await interaction.followup.send("❌ Internal Error: Could not load setup script structures.")
+            await interaction.followup.send("❌ Internal Error: Could not load setup structures.")
             return
 
         guild = interaction.guild
@@ -172,109 +173,29 @@ class DaoConfigCog(commands.Cog):
             await interaction.followup.send("❌ This command must be run in a server.")
             return
 
-        status_msg = await interaction.followup.send("⚡ Starting Xianxia Server Setup...")
+        status_msg = await interaction.followup.send("⚡ Building the Heavenly Dao realm...")
 
-        # ------------------------------------------------------------- 1. Roles
-        created_roles = {}
-        role_logs = []
-        for rspec in ROLES_SPEC:
-            existing = discord.utils.get(guild.roles, name=rspec["name"])
-            if existing:
-                created_roles[rspec["name"]] = existing
-            else:
-                perms = discord.Permissions.all() if rspec["admin"] else discord.Permissions.general()
-                new_role = await guild.create_role(
-                    name=rspec["name"],
-                    color=rspec["color"],
-                    hoist=rspec["hoist"],
-                    permissions=perms,
-                    reason="Heavenly Dao Engine Automated Setup",
-                )
-                role_logs.append(f"Created role: {rspec['name']}")
-                created_roles[rspec["name"]] = new_role
+        try:
+            result = await apply_server_setup(guild)
+        except Exception as exc:
+            await status_msg.edit(content=f"❌ Setup failed: {exc}")
+            return
+        roles, channels = result["roles"], result["channels"]
+        role_logs, channel_logs, content_logs = (
+            result["role_logs"], result["channel_logs"], result["content_logs"],
+        )
 
-        # --------------------------------------------------- 2. Categories & Channels
-        announcements_channel = None
-        rules_channel = None
-        channel_logs = []
-
-        for cat_spec in STRUCTURE:
-            cat_name = cat_spec["category"]
-            cat = discord.utils.get(guild.categories, name=cat_name)
-            if not cat:
-                cat = await guild.create_category(cat_name, reason="Heavenly Dao Setup")
-                channel_logs.append(f"Created category: {cat_name}")
-
-            for ch_spec in cat_spec["channels"]:
-                ch_name = ch_spec["name"]
-                existing_ch = discord.utils.get(cat.text_channels, name=ch_name)
-                if not existing_ch:
-                    overwrites = {}
-                    if ch_spec["read_only"]:
-                        overwrites[guild.default_role] = discord.PermissionOverwrite(send_messages=False, read_messages=True)
-                        if "👑 Dao Ancestor" in created_roles:
-                            overwrites[created_roles["👑 Dao Ancestor"]] = discord.PermissionOverwrite(send_messages=True)
-
-                    ch = await cat.create_text_channel(
-                        name=ch_name,
-                        topic=ch_spec["topic"],
-                        overwrites=overwrites,
-                        reason="Heavenly Dao Setup",
-                    )
-                    channel_logs.append(f"Created channel: #{ch_name}")
-                else:
-                    ch = existing_ch
-
-                if ch_name == "announcements":
-                    announcements_channel = ch
-                elif ch_name == "rules-and-guide":
-                    rules_channel = ch
-
-        # ----------------------------------------------- 3. Welcome & Commands Guide
-        guide_posted = False
-        if rules_channel:
-            # First check if guide is already posted
-            async for msg in rules_channel.history(limit=10):
-                if msg.author == self.bot.user and msg.embeds and "Welcome to the Heavenly Dao Engine Realm!" in msg.embeds[0].title:
-                    guide_posted = True
-                    break
-            
-            if not guide_posted:
-                embed = discord.Embed(
-                    title="🌌 Welcome to the Heavenly Dao Engine Realm! · 天道纪元",
-                    description=(
-                        "Embark on your journey from a mortal with clogged meridians to an immortal deity who commands the cosmic laws!\n\n"
-                        "**Getting Started:**\n"
-                        "1. Use `/register` to create your cultivator persona and reveal your **Spiritual Aptitude Profile**.\n"
-                        "2. Chat in `#meditation-hall` to passively absorb Qi into your dantian.\n"
-                        "3. Run `/cultivate` and `/breakthrough` in `#breakthrough-tribulations` to ascend realms!\n\n"
-                        "**Core Commands Guide:**\n"
-                        "• `/profile` — View your realm, Qi, stats, title, and physique\n"
-                        "• `/aptitudes` — View your Five Phases (五行), Martial Intents & Yin-Yang balance\n"
-                        "• `/inventory` & `/equip` — Equip weapons, scrolls, and pills\n"
-                        "• `/refine_pill` — Craft celestial pills in the 3-stage alchemy mini-game\n"
-                        "• `/realms` & `/explore` — Explore secret realm dungeon instances\n"
-                        "• `/events` & `/event_attack` — Join server-wide World Boss battles\n"
-                        "• `/laws` & `/comprehend` — Master the 5 Fundamental Laws of Existence\n"
-                        "• `/market` & `/sell` — Trade items for spirit stones in the Auction House\n"
-                        "• `/sect_create` & `/sect_join` — Form sects and build ancient arrays\n"
-                        "• `/help` — Full categorised command reference guide"
-                    ),
-                    color=discord.Color.gold(),
-                )
-                embed.set_footer(text="Heavenly Dao Engine v1.1.0 · 天道引擎")
-                await rules_channel.send(embed=embed)
-                channel_logs.append("Posted Xianxia Welcome & Commands Guide.")
-
-        # --------------------------------------------- 4. Update Database guild_config
-        admin_role_id = created_roles["👑 Dao Ancestor"].id if "👑 Dao Ancestor" in created_roles else None
-        announcement_channel_id = announcements_channel.id if announcements_channel else None
+        # ------------------------------------------------- Update Database guild_config
+        admin_role = roles.get("👑 Dao Ancestor")
+        ann_channel = channels.get(ANNOUNCEMENTS_CHANNEL)
+        admin_role_id = admin_role.id if admin_role else None
+        announcement_channel_id = ann_channel.id if ann_channel else None
 
         gender_mapping = {}
-        if "☯️ Yang Cultivator" in created_roles:
-            gender_mapping[str(created_roles["☯️ Yang Cultivator"].id)] = "male"
-        if "☯️ Yin Cultivator" in created_roles:
-            gender_mapping[str(created_roles["☯️ Yin Cultivator"].id)] = "female"
+        if "☯️ Yang Cultivator" in roles:
+            gender_mapping[str(roles["☯️ Yang Cultivator"].id)] = "male"
+        if "☯️ Yin Cultivator" in roles:
+            gender_mapping[str(roles["☯️ Yin Cultivator"].id)] = "female"
 
         await self.bot.db.execute(
             "INSERT INTO guild_config (guild_id, xianxia_terms_language, admin_role_id, announcement_channel_id, dao_role_to_gender, erasure_enabled)"
@@ -288,15 +209,17 @@ class DaoConfigCog(commands.Cog):
 
         # Build final summary
         summary = "🎉 DISCORD SERVER SETUP COMPLETE!"
-        if not role_logs and not channel_logs:
-            summary += "\n(All roles and channels were already correctly set up!)"
+        if not role_logs and not channel_logs and not content_logs:
+            summary += "\n(All roles, channels, and guides were already set up!)"
         else:
             if role_logs:
                 summary += f"\n• Created {len(role_logs)} missing roles"
             if channel_logs:
-                summary += f"\n• Created missing categories and channels"
+                summary += "\n• Created missing categories and channels"
+            if content_logs:
+                summary += f"\n• Posted {len(content_logs)} welcome guide(s)"
 
-        summary += "\n\nServer has been automatically configured with the Dao Ancestor admin role and gender tracking for Dao Bonds."
+        summary += "\n\nRealm configured: Dao Ancestor admin role, gender tracking for Dao Bonds, and self-serve reaction roles in #role-selection."
 
         await status_msg.edit(content=summary)
 
@@ -317,116 +240,38 @@ class DaoConfigCog(commands.Cog):
                 await message.channel.send("⛔ **Mortal Presumption** · Only server administrators or the server owner may run setup.")
                 return
 
-            status_msg = await message.channel.send("⚡ **Starting Xianxia Server Setup...** Please wait...")
+            status_msg = await message.channel.send("⚡ **Building the Heavenly Dao realm...** Please wait...")
 
             try:
-                from scripts.setup_discord_server import ROLES_SPEC, STRUCTURE
+                from scripts.setup_discord_server import apply_server_setup
+                from core.server_layout import ANNOUNCEMENTS_CHANNEL
             except ImportError:
-                await status_msg.edit(content="❌ Internal Error: Could not load setup script structures.")
+                await status_msg.edit(content="❌ Internal Error: Could not load setup structures.")
                 return
 
             guild = message.guild
 
-            # 1. Roles
-            created_roles = {}
-            role_logs = []
-            for rspec in ROLES_SPEC:
-                existing = discord.utils.get(guild.roles, name=rspec["name"])
-                if existing:
-                    created_roles[rspec["name"]] = existing
-                else:
-                    perms = discord.Permissions.all() if rspec["admin"] else discord.Permissions.general()
-                    new_role = await guild.create_role(
-                        name=rspec["name"],
-                        color=rspec["color"],
-                        hoist=rspec["hoist"],
-                        permissions=perms,
-                        reason="Heavenly Dao Engine Automated Setup",
-                    )
-                    role_logs.append(f"Created role: {rspec['name']}")
-                    created_roles[rspec["name"]] = new_role
-
-            # 2. Categories & Channels
-            announcements_channel = None
-            rules_channel = None
-            channel_logs = []
-
-            for cat_spec in STRUCTURE:
-                cat_name = cat_spec["category"]
-                cat = discord.utils.get(guild.categories, name=cat_name)
-                if not cat:
-                    cat = await guild.create_category(cat_name, reason="Heavenly Dao Setup")
-                    channel_logs.append(f"Created category: {cat_name}")
-
-                for ch_spec in cat_spec["channels"]:
-                    ch_name = ch_spec["name"]
-                    existing_ch = discord.utils.get(cat.text_channels, name=ch_name)
-                    if not existing_ch:
-                        overwrites = {}
-                        if ch_spec["read_only"]:
-                            overwrites[guild.default_role] = discord.PermissionOverwrite(send_messages=False, read_messages=True)
-                            if "👑 Dao Ancestor" in created_roles:
-                                overwrites[created_roles["👑 Dao Ancestor"]] = discord.PermissionOverwrite(send_messages=True)
-
-                        ch = await cat.create_text_channel(
-                            name=ch_name,
-                            topic=ch_spec["topic"],
-                            overwrites=overwrites,
-                            reason="Heavenly Dao Setup",
-                        )
-                        channel_logs.append(f"Created channel: #{ch_name}")
-                    else:
-                        ch = existing_ch
-
-                    if ch_name == "announcements":
-                        announcements_channel = ch
-                    elif ch_name == "rules-and-guide":
-                        rules_channel = ch
-
-            # 3. Welcome & Commands Guide
-            guide_posted = False
-            if rules_channel:
-                async for msg in rules_channel.history(limit=10):
-                    if msg.author == self.bot.user and msg.embeds and "Welcome to the Heavenly Dao Engine Realm!" in msg.embeds[0].title:
-                        guide_posted = True
-                        break
-
-                if not guide_posted:
-                    embed = discord.Embed(
-                        title="🌌 Welcome to the Heavenly Dao Engine Realm! · 天道纪元",
-                        description=(
-                            "Embark on your journey from a mortal with clogged meridians to an immortal deity who commands the cosmic laws!\n\n"
-                            "**Getting Started:**\n"
-                            "1. Use `/register` to create your cultivator persona and reveal your **Spiritual Aptitude Profile**.\n"
-                            "2. Chat in `#meditation-hall` to passively absorb Qi into your dantian.\n"
-                            "3. Run `/cultivate` and `/breakthrough` in `#breakthrough-tribulations` to ascend realms!\n\n"
-                            "**Core Commands Guide:**\n"
-                            "• `/profile` — View your realm, Qi, stats, title, and physique\n"
-                            "• `/aptitudes` — View your Five Phases (五行), Martial Intents & Yin-Yang balance\n"
-                            "• `/inventory` & `/equip` — Equip weapons, scrolls, and pills\n"
-                            "• `/refine_pill` — Craft celestial pills in the 3-stage alchemy mini-game\n"
-                            "• `/realms` & `/explore` — Explore secret realm dungeon instances\n"
-                            "• `/events` & `/event_attack` — Join server-wide World Boss battles\n"
-                            "• `/laws` & `/comprehend` — Master the 5 Fundamental Laws of Existence\n"
-                            "• `/market` & `/sell` — Trade items for spirit stones in the Auction House\n"
-                            "• `/sect_create` & `/sect_join` — Form sects and build ancient arrays\n"
-                            "• `/help` — Full categorised command reference guide"
-                        ),
-                        color=discord.Color.gold(),
-                    )
-                    embed.set_footer(text="Heavenly Dao Engine v1.1.0 · 天道引擎")
-                    await rules_channel.send(embed=embed)
-                    channel_logs.append("Posted Xianxia Welcome & Commands Guide.")
+            try:
+                result = await apply_server_setup(guild)
+            except Exception as exc:
+                await status_msg.edit(content=f"❌ Setup failed: {exc}")
+                return
+            roles, channels = result["roles"], result["channels"]
+            role_logs, channel_logs, content_logs = (
+                result["role_logs"], result["channel_logs"], result["content_logs"],
+            )
 
             # 4. Database Config
-            admin_role_id = created_roles["👑 Dao Ancestor"].id if "👑 Dao Ancestor" in created_roles else None
-            announcement_channel_id = announcements_channel.id if announcements_channel else None
+            admin_role = roles.get("👑 Dao Ancestor")
+            ann_channel = channels.get(ANNOUNCEMENTS_CHANNEL)
+            admin_role_id = admin_role.id if admin_role else None
+            announcement_channel_id = ann_channel.id if ann_channel else None
 
             gender_mapping = {}
-            if "☯️ Yang Cultivator" in created_roles:
-                gender_mapping[str(created_roles["☯️ Yang Cultivator"].id)] = "male"
-            if "☯️ Yin Cultivator" in created_roles:
-                gender_mapping[str(created_roles["☯️ Yin Cultivator"].id)] = "female"
+            if "☯️ Yang Cultivator" in roles:
+                gender_mapping[str(roles["☯️ Yang Cultivator"].id)] = "male"
+            if "☯️ Yin Cultivator" in roles:
+                gender_mapping[str(roles["☯️ Yin Cultivator"].id)] = "female"
 
             await self.bot.db.execute(
                 "INSERT INTO guild_config (guild_id, xianxia_terms_language, admin_role_id, announcement_channel_id, dao_role_to_gender, erasure_enabled)"
@@ -443,15 +288,17 @@ class DaoConfigCog(commands.Cog):
             await self.bot.tree.sync(guild=guild)
 
             summary = "🎉 **DISCORD SERVER SETUP COMPLETE!**"
-            if not role_logs and not channel_logs:
-                summary += "\n*(All roles and channels were already correctly set up!)*"
+            if not role_logs and not channel_logs and not content_logs:
+                summary += "\n*(All roles, channels, and guides were already set up!)*"
             else:
                 if role_logs:
                     summary += f"\n• Created {len(role_logs)} missing roles"
                 if channel_logs:
-                    summary += f"\n• Created missing categories and channels"
+                    summary += "\n• Created missing categories and channels"
+                if content_logs:
+                    summary += f"\n• Posted {len(content_logs)} welcome guide(s)"
 
-            summary += "\n\nServer configuration and slash commands have been synced to this server!"
+            summary += "\n\nRealm configured, reaction roles live in #role-selection, and slash commands synced!"
             await status_msg.edit(content=summary)
 
         elif content in ("!sync", "!sync_commands", "!sync-commands"):

@@ -5,6 +5,28 @@ All notable changes to the **Heavenly Dao Engine** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] — 2026-08-05 — The v2 Realm: Full Server Blueprint & Reaction Roles 🏯
+
+### Added
+
+- **Server blueprint v2 (`core/server_layout.py`)** — one source of truth for the whole server, shared by `/setup_server`, the `!setup` fallback, and `scripts/setup_discord_server.py`:
+  - **28 roles with real permissions**: 👑 Dao Ancestor (full admin), 🛡️ Heavenly Enforcer, ⚖️ Law Keeper, and 🧹 Sect Steward with graduated moderation permissions; the 9 realm tiers; and 14 self-assignable identity roles (☯️ gender, ⚔️ martial paths, 🌱 element roots, 📖 culture).
+  - **8 themed categories / 34 channels** (32 text + 2 voice): Mortal World, Scriptures, Cultivation Grounds, Sects & Bonds, Calamities & Events, Immortal Pavilion, Records & Archives, and a hidden Heavenly Court staff area.
+  - **Channel & role permissions**: read-only info channels (mortals read, staff post), hidden staff-only channels, and per-role allow/deny overwrites declared in the blueprint (`channel_overwrites()`).
+  - **Rich welcome experience**: 5 auto-posted guides (welcome, rules & commands, getting-started, command reference, role-selection board), pinned where it matters, all idempotent (never duplicated on re-run).
+- **Reaction roles (`cogs/reaction_roles.py`)** — members claim their gender/path/root/culture by tapping the role-selection board; exclusive groups auto-swap so every cultivator has exactly one gender, one path, and one root. Emoji→role map lives in `core.server_layout.REACTION_ROLE_MAP` (normalized, no variation-selector drift).
+- **Setup logic deduplicated**: the standalone script, the slash command, and the `!setup` fallback all now call the single `apply_server_setup()` builder in `scripts/setup_discord_server.py` — previously the layout-creation logic was copy-pasted three times.
+- `validate_layout()` — a pure validator that fails the test suite if the blueprint ever gains duplicates, unknown roles, invalid permission flags, or non-unique channel names.
+- Tests: 21 new (`tests/test_server_layout.py`, `tests/test_reaction_roles.py`). Total **188 tests passing**.
+
+### Fixed
+
+- **Migration 013 (`013_guild_config_announcement.sql`)**: `guild_config.announcement_channel_id` only ever existed in the PostgreSQL schema — the SQLite setup flow (which persists the announcements channel) would crash with `no such column` at runtime. SQLite now gains the column; the migration runner tolerates a re-run.
+- **`create_voice_channel` no longer receives `topic`** — this discord.py version doesn't accept it, and passing it would have TypeError'd the whole setup at the first voice channel.
+- **Channel creation is now server-wide aware**: Discord enforces unique channel names across the guild, so setup reuses a same-named channel anywhere rather than crashing with a 400.
+- **Guide idempotency hardened**: duplicate-guide detection now scans pinned messages + 100 messages of history, and the role-selection board repairs missing reactions on re-run.
+- **Standalone setup client reports errors cleanly** instead of dying with a raw traceback.
+
 ## [1.2.0] — 2026-08-05 — Off-Server Disaster Recovery & Deployment Docs 🛡️
 
 ### Added

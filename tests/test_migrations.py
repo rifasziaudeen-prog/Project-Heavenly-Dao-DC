@@ -20,13 +20,19 @@ def test_migrations_apply_and_are_idempotent():
             db = Database(Path(d) / "mig.db")
             await db.connect()
             applied = await run_migrations(db)
-            assert applied == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12]
+            assert applied == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13]
 
             rows = await db.fetchall(
                 "SELECT name FROM sqlite_master WHERE type='table'"
             )
             tables = {r["name"] for r in rows}
             assert EXPECTED_TABLES | {"item_templates", "alchemy_recipes", "alchemy_attempts", "reincarnation_log", "secret_realm_templates", "secret_realm_runs", "world_events", "world_event_participants", "world_event_phases", "dao_laws", "cultivator_laws", "market_listings", "trade_offers"} <= tables
+
+            # Migration 013: guild_config must expose the announcement channel
+            # column the server-setup flow persists into (regression for the
+            # SQLite "no such column" crash).
+            cols = [r["name"] for r in await db.fetchall("PRAGMA table_info(guild_config)")]
+            assert "announcement_channel_id" in cols
 
             # Critical P0 indexes
             idx = await db.fetchall("PRAGMA index_list('cultivators')")
@@ -95,7 +101,7 @@ def test_migration_rerun_tolerates_duplicate_columns():
             await db.execute("DELETE FROM schema_migrations WHERE version IN (2,3,4,5,6,7,8,9,10)")
             await run_migrations(db)  # must not raise "duplicate column name"
             rows = await db.fetchall("SELECT version FROM schema_migrations")
-            assert {r["version"] for r in rows} == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12}
+            assert {r["version"] for r in rows} == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13}
             await db.close()
 
     asyncio.run(main())

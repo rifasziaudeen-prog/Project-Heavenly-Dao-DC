@@ -72,6 +72,7 @@ class HeavenlyDaoBot(commands.Bot):
         from cogs.heaven_panel import HeavenPanelCog
         from cogs.items import ItemsCog
         from cogs.passive_qi import PassiveQiCog
+        from cogs.reaction_roles import ReactionRolesCog
         from cogs.reincarnation import ReincarnationCog
         from cogs.secret_realms import SecretRealmsCog
         from cogs.sects import SectsCog
@@ -91,6 +92,7 @@ class HeavenlyDaoBot(commands.Bot):
         await self.add_cog(WorldEventsCog(self))
         await self.add_cog(DaoLawsCog(self))
         await self.add_cog(AuctionCog(self))
+        await self.add_cog(ReactionRolesCog(self))
 
         for loop in (self.qi_flush_loop, self.presence_loop,
                      self.backup_loop, self.event_scheduler_loop,

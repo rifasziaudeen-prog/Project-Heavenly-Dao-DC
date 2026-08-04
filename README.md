@@ -71,7 +71,7 @@ enabled (required for passive Qi) — see `.env.example` for the full walkthroug
 | `/trade_accept` / `/trade_decline` | Accept or decline a pending P2P trade offer |
 | `/heaven_panel` | **Admin.** Server stats + Dao Punish / Dao Bless / Spawn Event / Broadcast |
 | `/dao_config` | **Admin.** Per-guild config (language mode [English/Bilingual], admin role, erasure toggle, channels, gender roles) |
-| `/setup_server` | **Admin.** Auto-configure roles, categories, and channels for the Heavenly Dao Engine |
+| `/setup_server` | **Admin.** Build the full realm: 28 roles with permissions, 8 categories & 34 channels (incl. voice + hidden staff area), welcome guides, and the self-serve reaction-role board |
 | `/dao_bond @user <type>` | Propose a Dao Bond with another cultivator (requires Tier 2+) |
 | `/dao_bond_accept @user` / `/dao_bond_decline @user` | Answer a pending bond proposal |
 | `/dao_bond_sever @user [reason]` | Sever a bond — public drama, Heart Demon for both |
@@ -258,8 +258,8 @@ A fully player-driven economy without NPC merchants — list, bid, buyout, and t
 bot/            Discord bot assembly + background tasks (qi flush, presence,
                 daily backup, world-event scheduler)
 cogs/           Slash-command modules (alchemy, auction, cultivation, dao_bonds, dao_config, dao_laws,
-                heaven_panel, items, passive_qi, reincarnation, secret_realms, sects, world_events)
-core/           Deterministic math, template engine, Groq client, anti-cheat,
+                heaven_panel, items, passive_qi, reaction_roles, reincarnation, secret_realms, sects, world_events)
+core/           Deterministic math, template engine, Groq client, anti-cheat, server layout blueprint,
                 alchemy, auction, dao_bonds, dao_laws, items, reincarnation, secret_realms, sects, world_events
 db/             Async SQLite & PostgreSQL layers (database.py, postgres.py), migration runner, queries
 migrations/     Versioned SQL migrations (001_init to 012_spiritual_aptitudes; postgres/011 + 012)
@@ -267,8 +267,8 @@ scripts/        Automation scripts (setup_discord_server.py, migrate_sqlite_to_p
                 validate_migration.py, github_backup.py)
 templates/      Narrative fragment JSON — add files to extend flavor
 config/         Env-driven settings (default.py, postgres.py)
-tests/          pytest suite (167 tests covering balance, bonds, sects, items, alchemy, reincarnation,
-                secret realms, world events, dao laws, auction, affinities, postgres, migrations, github backup)
+tests/          pytest suite (188 tests covering balance, bonds, sects, items, alchemy, reincarnation,
+                secret realms, world events, dao laws, auction, affinities, postgres, migrations, github backup, server layout)
 ```
 
 ## Backups & disaster recovery
@@ -291,6 +291,37 @@ tests/          pytest suite (167 tests covering balance, bonds, sects, items, a
 * **Why**: a free hosting provider can purge your server (e.g. wispbyte's
   14-day inactivity rule). Your code lives on GitHub — and now so do your
   player-data snapshots.
+
+## Server blueprint (the v2 realm)
+
+`/setup_server` (and the `!setup` fallback, and `scripts/setup_discord_server.py`)
+build the whole server from **one source of truth** — `core/server_layout.py` —
+so the slash command, the text fallback, and the standalone script can never
+drift apart. Setup is fully idempotent: run it again and it only creates what's
+missing.
+
+**What it builds (28 roles · 8 categories · 34 channels):**
+
+* **Roles with real permissions** — 👑 Dao Ancestor (full admin), 🛡️ Heavenly
+  Enforcer / ⚖️ Law Keeper / 🧹 Sect Steward (graduated moderation), 9 realm
+  tiers, plus self-assignable ☯️ gender, ⚔️ martial-path, 🌱 element-root, and
+  📖 culture roles.
+* **Themed categories** — 🌄 Mortal World (welcome, rules, announcements,
+  role-selection, status), 📖 Scriptures, 🌌 Cultivation Grounds, 🏯 Sects &
+  Bonds, ⚔️ Calamities & Events, 🗣️ Immortal Pavilion (social + 2 voice
+  rooms), 📜 Records & Archives, and a hidden 🏛️ Heavenly Court staff area.
+* **Channel permission overwrites** — read-only info channels (mortals read,
+  staff post), staff-only hidden channels, and per-role allow/deny rules
+  declared right in the blueprint.
+* **Reaction roles** — the role-selection board lets members claim their
+  gender/path/root/culture with a tap; exclusive groups auto-swap (one gender,
+  one path, one root). Handled by `cogs/reaction_roles.py`.
+* **Welcome experience** — 5 guides auto-posted (welcome, rules & commands,
+  getting-started, command reference, role-selection board), pinned where it
+  matters, and `guild_config` (admin role + gender mapping + announcement
+  channel) written automatically.
+
+To rebuild on a fresh server: invite the bot, run `/setup_server` once, done.
 
 ## Testing
 
