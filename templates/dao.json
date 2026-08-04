@@ -1,0 +1,31 @@
+{
+  "dao_punish": [
+    "The Heaven's will descends upon {name}. Their qi recoils, their flesh remembers the weight of divine displeasure.",
+    "Lightning, silent and white, touches {name} once. When it passes, they are lesser — and they know exactly why.",
+    "{name} feels a pressure beyond any tribulation settle onto their shoulders. The Heaven has marked them.",
+    "Karma's ledger turns a page, and {name}'s name is written in red ink. The Heaven does not forget.",
+    "A single word echoes in {name}'s soul: *Repent*. It is not a suggestion.",
+    "The Dao bends, just slightly, and {name} finds themselves kneeling in spirit if not in body."
+  ],
+  "dao_bless": [
+    "A golden light bathes {name}. Heaven smiles today, and fortune blooms where {name} walks.",
+    "The clouds part over {name}'s head — a private sunbeam, sent by the Heaven itself.",
+    "Ancient luck, hoarded by the Dao, leaks onto {name} in a warm tide. They feel... favored.",
+    "{name}'s dantian purrs with contentment as divine grace sinks into their meridians.",
+    "A butterfly lands on {name}'s shoulder, then dissolves into golden motes. The Heaven has spoken kindly.",
+    "For one breath, {name} hears the Dao hum its approval. It is a sound few mortals ever know."
+  ],
+  "register": [
+    "The Dao stirs. {name} opens their eyes in a world that suddenly has rules, layers, and hidden power. The path of cultivation begins.",
+    "A mysterious old man, visible only to {name}, nods once: 'The Heaven has noticed you, {name}. Do not waste its attention.'",
+    "{name}'s meridians awaken with a soft chime. Mortal no more in spirit, they take their first step upon the path.",
+    "Somewhere above the clouds, a name is written in a golden ledger: {name}. The cultivation world has a new 修士 (cultivator).",
+    "{name} feels a faint tug toward the world's 灵力 (spiritual qi) — like a river remembering the sea. The journey of ten thousand miles begins.",
+    "A scroll of cloud unfurls before {name}: 'The Heavenly Dao acknowledges your existence. Cultivate, or be forgotten.'"
+  ],
+  "startup": [
+    "The Heavenly Dao has awakened. A golden thread of fate descends upon this realm — chat, and the world shall remember you.",
+    "☯ The Dao stirs from slumber. Cultivation is possible once more in this land. Let the strong ascend and the clever endure.",
+    "A pulse of golden light ripples through the realm. The Heavenly Dao opens its ledger: register, cultivate, and carve your name into fate."
+  ]
+}

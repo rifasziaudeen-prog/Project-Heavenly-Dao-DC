@@ -1,0 +1,24 @@
+{
+  "breakthrough_success": [
+    "The 瓶颈 (bottleneck) shatters like thin ice! {name} rises into the **{realm}** as the world holds its breath.",
+    "Thunder rolls — but it is the thunder of the Dao applauding. {name} steps into the **{realm}**.",
+    "{name}'s dantian ignites, purifying the last dregs of mortal qi. Welcome to the **{realm}**.",
+    "The Heavens part for one heartbeat, and in that heartbeat {name} ascends to the **{realm}**.",
+    "Meridians reforge themselves like a blacksmith's steel as {name} enters the **{realm}**. The body remembers; the Dao endures.",
+    "A golden light blooms from {name}'s chest. The assembled world turns to witness a new cultivator of the **{realm}**.",
+    "{name} exhales a breath of stale mortal air — and inhales the power of the **{realm}**.",
+    "The sound barrier of cultivation cracks wide open. {name} is now firmly of the **{realm}**.",
+    "An ancient mural, forgotten in a ruined shrine, flickers to life — depicting a figure who looks exactly like {name}, standing in the **{realm}**.",
+    "Even the 心魔 (Heart Demons) of the realm pause their scheming to mark this: {name} has reached the **{realm}**."
+  ],
+  "breakthrough_fail": [
+    "The qi within {name} scatters like startled cranes. The breakthrough fails, and the dantian aches with unshed power.",
+    "Halfway through the transformation, {name}'s will wavers — the Dao closes its doors for now. Half the gathered qi dissipates.",
+    "The tribulation passes over {name} without lightning, without mercy. Just silence. The breakthrough fails.",
+    "{name} pushes against the 瓶颈 (bottleneck) with all their might, but the mountain does not move. Qi leaks from the meridians like water from cracked clay.",
+    "A cold whisper from the 心魔 (Heart Demon): 'Not yet.' {name} retracts, shaken, having failed the breakthrough.",
+    "The celestial gate opens a crack — then snaps shut, nearly severing {name}'s spiritual sense. The attempt fails.",
+    "Alchemy smoke drifts from nowhere as {name}'s breakthrough collapses. Even the Heavens seem to sigh in disappointment.",
+    "{name} lands hard, dantian spinning in chaos, qi halved. The Dao has not rejected them — merely asked them to try again."
+  ]
+}

@@ -1,0 +1,308 @@
+# ☯ Heavenly Dao Engine · 天道引擎
+
+A Xianxia Discord RPG where chat activity becomes cultivation power. Deterministic
+mechanics (Qi, realms, tribulations) are 100% hardcoded for balance; narrative
+flavor is driven by a zero-cost template engine, with an optional Groq free-tier
+LLM plug-in that is **disabled by default**.
+
+**Phase 3 scope (current):** foundation, core loop, P2P Dao Bonds, player-run Sects, spirit stone economy, and the **Inventory & Items System**.
+
+---
+
+## Setup
+
+```bash
+python -m venv .venv
+# Windows: .venv\Scripts\activate   |   macOS/Linux: source .venv/bin/activate
+pip install -r requirements.txt
+# Windows: copy .env.example .env   |   macOS/Linux: cp .env.example .env
+python run.py
+```
+
+Then open `.env` and paste your bot token (the annotated template in
+`.env.example` walks you through every option).
+
+Requirements: Python 3.11+ · a bot token with the **MESSAGE CONTENT INTENT**
+enabled (required for passive Qi) — see `.env.example` for the full walkthrough.
+
+## Commands
+
+| Command | Description |
+|---|---|
+| `/help [category]` | Browse commands by category (Core, Aptitudes, Items, Alchemy, Realms, Events, Laws, Market, Sects & Bonds) |
+| `/register` | Awaken your cultivation profile |
+| `/cultivate` | Absorb 灵力 (Qi) — 30 min cooldown |
+| `/breakthrough` | Attempt a tribulation when your dantian is full (awards spirit stones & item drops on success) |
+| `/allocate <stat> [amount]` | Spend stat points earned from breakthroughs |
+| `/profile [member]` | View cultivation profile, spirit stone balance, and bond count |
+| `/aptitudes [member]` | View Spiritual Root profile — Five Phases, Martial Intents & Yin-Yang balance |
+| `/leaderboard` | Top 10 cultivators of this realm |
+| `/inventory [page]` | View items in your spatial ring (pills, weapons, scrolls, talismans, materials) |
+| `/equip <item_name>` | Equip or unequip weapons or technique scrolls (max 1 weapon, 1 scroll) |
+| `/use <item_name>` | Consume pills, talismans, or charms (restores Qi, purges Heart Demon, or grants protection) |
+| `/give @user <item_name> [quantity]` | Transfer items to another cultivator in the server |
+| `/item_info <item_name>` | Inspect grade, lore, item type, equipped status, and parsed effect breakdown |
+| `/recipes [grade]` | View known pill recipes, required ingredients, base success rates, and outputs |
+| `/alchemy_status` | View your alchemy mastery level, equipped cauldron bonus, fame, and history |
+| `/refine_pill <recipe_name>` | Start the 3-stage interactive pill refinement mini-game |
+| `/reincarnate` | Voluntarily shed your mortal vessel to be reborn with legacy bonuses (Tier 5+) |
+| `/past_lives` | View past reincarnation logs, epitaphs, retained techniques, and past-life memories |
+| `/legacy` | Preview stats, bonuses, techniques, and physique retained if reincarnated now |
+| `/realms` | View available secret realm dungeons, entry costs, and potential drops |
+| `/enter_realm <realm_name>` | Open portal and enter a secret realm dungeon instance |
+| `/explore` | Explore the next encounter node in your active secret realm instance |
+| `/retreat` | Safely retreat from your active secret realm instance keeping acquired loot |
+| `/events` | View active and scheduled World Boss events and calamities |
+| `/event_join <event_id>` | Register participation in an active World Event |
+| `/event_attack <event_id>` | Attack active World Bosses, dealing damage and progressing HP/phases |
+| `/event_status <event_id>` | Check World Boss HP bar, current phase, narrative state, and damage leaderboard |
+| `/event_claim <event_id>` | Claim post-event loot rewards based on damage rank |
+| `/spawn_event <type>` | **Admin.** Schedule or immediately spawn a server World Event |
+| `/laws` | View fundamental Dao Laws, your current mastery percentages, and active milestones |
+| `/comprehend <law_name>` | Meditate on a law to gain insight and mastery (Tier 5+, 4-hour cooldown) |
+| `/law_status <law_name>` | View detailed lore, requirements, and milestone effects for a law |
+| `/market` | Browse active market listings in the Heavenly Auction House |
+| `/sell <item_name> <price>` | List an item on the market (5% listing fee, max 5 listings) |
+| `/buy <listing_id>` | Instant buy an item at buyout/listed price |
+| `/bid <listing_id> <amount>` | Place a bid on an active auction listing (min +10% increment) |
+| `/my_listings` | View your active market listings and top bids |
+| `/cancel_listing <listing_id>` | Cancel an active listing and return item to inventory |
+| `/trade @user <item_name>` | Propose a direct P2P item trade to another cultivator |
+| `/trade_accept` / `/trade_decline` | Accept or decline a pending P2P trade offer |
+| `/heaven_panel` | **Admin.** Server stats + Dao Punish / Dao Bless / Spawn Event / Broadcast |
+| `/dao_config` | **Admin.** Per-guild config (language mode [English/Bilingual], admin role, erasure toggle, channels, gender roles) |
+| `/setup_server` | **Admin.** Auto-configure roles, categories, and channels for the Heavenly Dao Engine |
+| `/dao_bond @user <type>` | Propose a Dao Bond with another cultivator (requires Tier 2+) |
+| `/dao_bond_accept @user` / `/dao_bond_decline @user` | Answer a pending bond proposal |
+| `/dao_bond_sever @user [reason]` | Sever a bond — public drama, Heart Demon for both |
+| `/dao_bonds` | List your active bonds |
+| `/dual_cultivate @user` | Cultivate together (bond tier 3+, both must consent) |
+| `/sect_create <name>` | Found a new sect (requires Foundation Establishment / Tier 3+) |
+| `/sect_join <name>` | Join an existing sect as an Outer Disciple |
+| `/sect_leave` | Leave your current sect (Patriarch departure disbands the sect) |
+| `/sect_info [name]` | View sect dashboard (members, array level, treasury, roster) |
+| `/sect_donate <amount>` | Donate spirit stones to the sect treasury |
+| `/sect_upgrade_array` | **Patriarch.** Upgrade the defensive array using treasury funds |
+| `/sect_promote @user` | **Patriarch.** Promote a member one rank step |
+| `/sect_demote @user` | **Patriarch.** Demote a member one rank step |
+| `/sect_expel @user` | **Patriarch.** Expel a lower-ranked member from the sect |
+
+Passive Qi: every countable chat message awards ~10% of a `/cultivate`. Cap of
+**15 messages/hour/player**; messages under 5 chars, duplicates within 60s, and
+messages in disabled (spam) channels don't count.
+
+## Game design (per the v2.0 blueprint + Kimi review)
+
+* **Balance**: exponential breakthrough difficulty (15 → 1886), Heart Demon
+  non-linear penalty, Karma ±10%, sect bonus, and a **Dao Mercy** pity system
+  (+5% per failed attempt, capped +25%). Success chance is clamped to 5–95%.
+* **Qi economy**: diminishing returns on comprehension (logarithmic), companion
+  bonuses additive & hard-capped at 2x, array bonus capped at +50%.
+* **Heavenly Dao Erasure**: 0.5% on tier 8+ **failures**. Without a charm you
+  fall to Mortal but keep 25% 悟性 (comprehension) and 10% 气运 (luck) plus the
+  **Ashen Remnant** title — never account death. Charms (found on 5% of
+  successful breakthroughs, or granted by the Heaven) change the outcome.
+* **Zero LLM cost**: all narrative comes from weighted templates in SQLite.
+  The Groq client (`ENABLE_GROQ=true`) is wired for Tier-4 moments with strict
+  rate limits (1/player/24h, 10/hour global) and automatic template fallback.
+* **Language Modes**: Server admins can toggle between **Pure English UI** (`/dao_config language:english`) and **Bilingual UI** (`/dao_config language:bilingual`).
+
+## Spiritual Aptitudes & Martial Intent Engine (v1.1.0)
+
+Every cultivator awakens with a unique Spiritual Root (灵根) — a randomized profile of **Five Phases aptitudes (五行)**, **Martial Weapon Intents (武道真意)**, and a **Yin-Yang balance (阴阳)** that shapes how they grow and fight.
+
+* **Awakening Roll** (assigned automatically on `/register`):
+  * **60-point pool** distributed randomly across the 6 elemental aptitudes, with no single element above **25**.
+  * **30-point pool** across the 4 martial intents, no single intent above **15**.
+  * **1% Chaos Five-Element Root (混沌五行根)**: a legendary balanced roll setting *all* elements to 20–25 — equally attuned to every phase, compatible with all manuals.
+  * Yin-Yang balance starts at **0 (Balanced)**; `special_root` is NULL unless a Chaos Root was rolled.
+* **Five Phases (五行)** — Fire 🔥 · Water 💧 · Wood 🪵 · Metal 🪙 · Earth 🪨 · Qi ✨. Each aptitude (0–100) grants a scaling stat multiplier `(aptitude / 100) × max_bonus`:
+  * **Fire** — up to +20% crit chance, +50% crit multiplier.
+  * **Water** — up to +15% evasion, +10% speed, +10% vitality recovery.
+  * **Wood** — up to +20% toxin/debuff immunity.
+  * **Metal** — up to +25% armor penetration, +15% raw damage.
+  * **Earth** — up to +20% CC resistance, +15% barrier shielding.
+  * **Qi** — up to +30% Qi regen speed, +20% Qi gain (wired into `calculate_qi_gain`), +15% dantian efficiency.
+* **Martial Weapon Intents (武道真意)** — Sword 🗡️ · Sabre 🪓 · Spear 🔱 · Fist 👊:
+  * **Sword Intent** — up to +15% multi-hit trigger chance.
+  * **Sabre Intent** — up to +20% cleave damage, +10% lifesteal.
+  * **Spear Intent** — up to +15% counter-attack, +12% armor break chance.
+  * **Fist Intent** — up to +25% armor-ignoring dantian Qi damage.
+* **Yin-Yang Balance (阴阳)** — ranges −100 (Pure Yin) to +100 (Pure Yang):
+  * **Yang** (+): physical fortitude and external power — up to +10% Yang fortitude.
+  * **Yin** (−): phantom evasion and heart-demon resistance — up to +10% Yin Heart Demon resistance.
+  * The `/aptitudes` embed colour-codes by alignment: gold (Pure Yang), cyan (balanced), violet (Pure Yin).
+* **Equipment Prerequisites**: high-tier weapons and technique scrolls may embed aptitude requirements in their effect data (keys like `min_affinity_fire` or `min_intent_sword`) — `core/items.py` refuses to equip them until the cultivator's profile qualifies.
+* **Commands**: `/aptitudes [member]` — full Spiritual Root profile with progress bars, dominant element & intent, Yin-Yang gauge, and any special root.
+* **Growth sources**: aptitudes rise through secret realm epiphanies, alchemy elixirs, Dao Law comprehension, and World Boss victories. The `special_root` column is designed to be extended (future roots like `heavenly_fire`, `yin_phantom`); Artifact Spirits (器灵) are deferred to a later migration.
+
+## Dao Bonds — companions are real people (review v2)
+
+Dao Companions, sworn siblings, masters & disciples, rivals, and dual
+cultivation partners are **bonds between actual server members**, not NPCs.
+
+* **Bond types**: 道侣 Dao Companion · 义兄姊 Sworn Sibling · 师徒 Master-Disciple
+  · 宿敌 Rival · 同门 Sect Sibling · 双修伴侣 Dual Cultivation Partner
+* **Minimum realm gate**: Mortals (tier 1) cannot form bonds; both players must
+  be **Qi Condensation (炼气, tier 2)** or higher.
+* **Gender rules** (admin-set via `/dao_config` → `dao_male_role` /
+  `dao_female_role`): both players must hold a mapped role, and **same-gender
+  pairs cannot form romantic bonds** (no marrying one's own gender).
+* **Fickle Heart stigma**: severing a romantic bond and proposing a new one
+  within 7 days brands the player **薄情寡义 Fickle Heart** on `/profile`.
+* **Realm gaps**: romantic bonds within 1 realm; other bonds up to 3; a master
+  must be 2+ realms above the disciple.
+* **Polygamy limits**: 3 Dao Companions · 1 Dual Cultivation Partner · 5 Sworn
+  Siblings · 3 Disciples (1 master each) · 1 Rival · 10 Sect Siblings.
+* **Synergy** is computed from real stats: complementary stats, shared karma
+  path (×1.2 vs ×0.7), realm proximity, and bond tier.
+* **Severance drama**: both gain Heart Demon (tier × 5%); the severer loses
+  100 karma; the victim gains the **Betrayed** title and a +15% breakthrough
+  buff for 7 days (rage cultivation).
+* **Dual cultivation** (`/dual_cultivate`) requires a Dao Companion or Dual
+  Cultivation Partner bond at tier 3+, a 4h cooldown, and **both players must
+  press Consent** — a real-time two-player ritual.
+
+## Sects & Spirit Stones Economy (Phase 2)
+
+Cultivators can form and manage player-run organizations with rank hierarchies,
+treasuries, and defensive array upgrades.
+
+* **Creation gate**: requires **Foundation Establishment (筑基, tier 3+)**; sect
+  name must be 2–40 characters.
+* **Five-rank hierarchy**: Outer Disciple (外门弟子) → Inner Disciple (内门弟子) →
+  Core Disciple (亲传弟子) → Elder (长老) → Patriarch (宗主).
+* **Rank permissions**: Patriarchs can promote, demote, expel members, and
+  upgrade the sect's defensive array.
+* **Array upgrade economy**: array levels (1–7) provide breakthrough success
+  bonuses (up to +56%). Upgrades are funded from the sect treasury with exponential
+  cost `int(500 × 1.5^(level-1))`.
+* **Spirit stone wallet**: players earn **+10 spirit stones** per successful
+  breakthrough. Stones can be donated to the sect treasury via `/sect_donate`.
+
+## Inventory & Items System (Phase 3, Step 1)
+
+Cultivators collect, equip, consume, and trade items across five grades (`Mortal`, `Earth`, `Heaven`, `Immortal`, `God`).
+
+* **Item Types**:
+  * **Pills**: Consumables for instant Qi restoration (`qi_boost`) or Heart Demon purging (`heart_demon_purge`).
+  * **Weapons**: Equipable gear providing passive stat boosts (`stat_buff` for Physique, Spirit, Luck, Comprehension).
+  * **Technique Scrolls**: Equipable scriptures granting passive breakthrough success rate bonuses (`breakthrough_aid`).
+  * **Talismans**: Protective artifacts that grant Heavenly Dao Erasure protection charms (`karmic_shield`, `reincarnation_seed`, `dao_heart_anchor`).
+  * **Materials**: Ingredients reserved for alchemy and crafting.
+* **Equipment Constraints**: Maximum **1 Weapon** and **1 Technique Scroll** equipped simultaneously.
+* **Drop Sources**: Breakthrough success (Charms 5%, Pills 15%, Scrolls 8%), Cultivate streaks (Materials 20%, Talismans 10%), and Sect array weekly distributions.
+
+## Alchemy Mini-Game (Phase 3, Step 2)
+
+Cultivators combine gathered materials into potent elixirs through a 3-stage interactive mini-game.
+
+* **Mini-Game Stages**:
+  * **Stage 1 (Fire Control)**: Button rhythm game repeating a shown flame pattern (`Low`, `Medium`, `High`).
+  * **Stage 2 (Ingredient Sequence)**: Interactive Select Menu choosing the correct ingredient addition sequence.
+  * **Stage 3 (Spiritual Sense)**: Comprehension stat check against recipe difficulty.
+* **Refinement Outcomes**:
+  * 🎉 **Success**: Refines target pill and adds it to spatial ring.
+  * ✨ **Miracle (1% Chance)**: Celestial aura upgrades the output with a **1.5x effect multiplier**.
+  * 🌫️ **Failure**: Materials lost to dross + 1% Heart Demon penalty.
+  * 💥 **Explosion**: Violent flame eruption costs **25% Qi** + **5% Heart Demon** penalty.
+## Reincarnation System — "Death Is Not The End" (Phase 3, Step 3)
+
+Cultivators can voluntarily shed their mortal shell (Tier 5+ with half-full dantian) or undergo forced rebirth upon Heavenly Dao Erasure at Tier 8+.
+
+* **Legacy Retention**: Retains **25% Comprehension**, **10% Luck**, **50% unspent stat points**, and **1 inherited technique scroll** carried over into the next lifetime.
+* **Cycle Advantages**: Stacking **+5% breakthrough success rate bonus per cycle** (max +25%) and unique reincarnated physiques (`Mortal Meridian` → `Reincarnated Soul` → `Twice-Born Dao Heart` → ... → `Heavenly Dao Reject`).
+* **Epitaphs & Memory Unlocks**: Automatically generates past life epitaphs via template engine and unlocks past life memories as Comprehension reaches 100, 250, 500, and 1000 thresholds.
+
+## Secret Realms Dungeon System (Phase 3, Step 4 & Step 5)
+
+Cultivators venture into ancient secret realm instances to battle beasts, disarm formations, and claim rare celestial loot.
+
+* **Branching Node Encounters**: `Monster` (Physique/Spirit combat check), `Treasure` (ancient chest opening), `Trap` (Luck disarm check), and `Herb_Garden` (Comprehension harvesting).
+* **Final Depth Bosses**: Final dungeon node spawns a Guardian Boss with scaled difficulty.
+* **Safe Retreat**: Players can `/retreat` at any node to escape safely with all accumulated loot.
+* **Groq Tier-4 Integration**: Optional Groq LLM client (`core/groq_client.py`) generates rich narrative flavor with seamless fallback to `TemplateEngine`.
+
+## World Events & Heavenly Calamities (Phase 4, Step 1)
+
+Server-wide World Boss encounters scheduled in advance featuring 5 event types and 5 boss HP phases.
+
+* **5 Event Types**: Demon Beast Siege, Heavenly Tribulation Rain, Ancient Ruin Awakening, Sect War, and Dao Competition.
+* **5 Boss HP Phases**: `Normal` (100%→75%) → `Enraged` (75%→50%) → `Minions Spawned` (50%→25%) → `Desperation` (25%→10%) → `Final Stand` (10%→0%).
+* **Deterministic Damage Math**: `damage = (strength * 8 + spirit * 4 + weapon) * technique * sect_array * (1 + law_mastery / 1000) * rng`.
+* **Sect Sacrifice Buffs**: Patriarchs spend treasury spirit stones for party-wide damage buffs (up to +50%), healing, and debuff immunity.
+* **Leaderboard Rewards**: Top damage ranks earn unique titles, God/Immortal/Heaven-grade loot items, and spirit stone rewards.
+
+## Dao Laws Endgame System (Phase 4, Step 2)
+
+High-tier cultivators (Nascent Soul / Tier 5+) comprehend the 5 Fundamental Laws of Existence (`Space`, `Time`, `Karma`, `Sword`, `Alchemy`).
+
+* **Insight Sources**: Meditation (`/comprehend`), secret realm epiphanies, tribulation survivals, world boss participation, ancient texts, and sect array meditation.
+* **Milestone Unlocks**: 25% (First Vision), 50% (Technique Unlock: `Void Step`, `Temporal Cultivation`, `Sword Intent`), 75% (Dao Resonance), and 100% (Complete Mastery).
+* **Dao Fusion Prerequisites**: Reaching **100% Complete Mastery** in at least 1 Fundamental Law is required for **Dao Fusion Ascension (Tier 7→8)**.
+
+## Auction House & P2P Trading (Phase 4, Step 3)
+
+A fully player-driven economy without NPC merchants — list, bid, buyout, and trade items for spirit stones.
+
+* **Market Listings**: `/sell` items for spirit stones with a 5% upfront listing fee (max 5 active listings per player).
+* **Bidding & Buyout**: Place bids with a minimum +10% increment over the current bid (bids held in escrow with auto-refund for outbid players) or `/buy` instantly at buyout price.
+* **Seller Tools**: `/my_listings` reviews all your active listings with top bids and buyouts; `/cancel_listing <id>` delists one — refunding the 5% listing fee, returning the item to your `/inventory`, and releasing any escrowed bid back to the bidder.
+* **Listings Expire**: `/sell` accepts `duration_hours` (1–168, default 24). A background sweep (every 60s) expires due listings: it marks them `expired`, refunds any escrowed bid to the bidder, and returns the item to the seller's inventory. No fee refund on natural expiry.
+* **5% Market Sales Tax**: Deducted from seller proceeds upon successful item purchase.
+* **Direct P2P Trading**: `/trade @user` offers direct item-to-item transfers with a 10-minute confirmation window.
+
+## Project layout
+
+```
+bot/            Discord bot assembly + background tasks (qi flush, presence,
+                daily backup, world-event scheduler)
+cogs/           Slash-command modules (alchemy, auction, cultivation, dao_bonds, dao_config, dao_laws,
+                heaven_panel, items, passive_qi, reincarnation, secret_realms, sects, world_events)
+core/           Deterministic math, template engine, Groq client, anti-cheat,
+                alchemy, auction, dao_bonds, dao_laws, items, reincarnation, secret_realms, sects, world_events
+db/             Async SQLite & PostgreSQL layers (sqlite.py, postgres.py), migration runner, queries
+migrations/     Versioned SQL migrations (001_init to 010_auction_house, postgres/011_postgres_schema)
+scripts/        Automation scripts (setup_discord_server.py, migrate_sqlite_to_postgres.py, validate_migration.py)
+templates/      Narrative fragment JSON — add files to extend flavor
+config/         Env-driven settings (postgres.py, settings.py)
+tests/          pytest suite (119 tests covering balance, bonds, sects, items, alchemy, reincarnation, secret realms, world events, dao laws, auction, postgres, migrations)
+```
+
+## Testing
+
+```bash
+.venv/Scripts/python -m pytest -q
+```
+
+## Documentation
+
+* **`README.md`** — this file: setup, commands, design, roadmap
+* **`CHANGELOG.md`** — version history (Keep a Changelog format)
+* **`MIGRATION.md`** — SQLite → PostgreSQL path and the P0 schema decisions
+* **`.env.example`** — annotated template for every environment variable
+
+## Troubleshooting
+
+* **Slash commands don't appear** — commands sync globally by default and can
+  take up to an hour. Set `DEV_GUILD_ID` to your server ID in `.env` for
+  instant sync.
+* **No passive Qi from chat** — enable the **MESSAGE CONTENT INTENT** in the
+  Discord Developer Portal (Bot > Privileged Gateway Intents) and restart.
+* **`DISCORD_TOKEN is not set`** — you haven't created `.env` from
+  `.env.example` yet.
+* **Database keeps growing** — expected: `qi_buffer` is an append-only audit
+  log. It gets monthly partitioning in the PostgreSQL migration.
+
+## Roadmap
+
+* **Phase 1 (foundation):** core loop, passive Qi, admin panel, template engine *(Completed)*
+* **Phase 2 (social):** sects, player-to-player Dao Bonds, spirit stone economy *(Completed)*
+* **Phase 3 (advanced):** inventory & items *(Completed)*, alchemy mini-game *(Completed)*, reincarnation *(Completed)*, secret realms *(Completed)*, Groq Tier-4 wiring *(Completed)*
+* **Phase 4 (world):** world-event mechanics *(Completed)*, Dao Laws endgame *(Completed)*, auction house / P2P trading *(Completed)*, PostgreSQL migration *(Completed)*
+* **v1.1.0:** Spiritual Aptitudes & Martial Intent Engine (Five Phases, Martial Intents, Yin-Yang) *(Completed)* — see the [dedicated section](#spiritual-aptitudes--martial-intent-engine-v110)
+
+---
+
+### 🎉 HEAVENLY DAO ENGINE v1.1.0 — FULL RELEASE COMPLETE!
+

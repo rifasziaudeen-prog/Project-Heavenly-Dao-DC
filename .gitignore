@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+*.egg-info/
+
+# Secrets
+.env
+
+# Runtime data
+heavenly_dao.db
+heavenly_dao.db-wal
+heavenly_dao.db-shm
+backups/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Tool data (do not commit)
+.freebuff/
+.zcode/
