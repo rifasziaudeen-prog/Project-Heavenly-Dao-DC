@@ -5,6 +5,42 @@ All notable changes to the **Heavenly Dao Engine** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] — 2026-08-05 — Dao Law Ranks + Aptitude Learning Speed 📜
+
+### Added
+
+- **5-rank Dao Law system** (`core/dao_laws.py`) — mastery is now shown as
+  discrete ranks unlocking at 20/40/60/80/100: Insight 洞察 → Comprehension
+  领悟 → Realization 真悟 → Enlightenment 明悟 → Transcendence 超脱. Storage
+  stays 0-100 internally; players see "Rank 3 · Realization (61%)" plus
+  next-rank progress in `/laws`.
+- **Rank resistance (5% → 25%)** — each rank grants **5% damage reduction**
+  against attacks of that law's type (Rank 5 = 25%), the curve you asked for.
+  **2 ranks ahead = deterministic counter**, no RNG.
+- **Aptitude = learning speed** — `/comprehend` insight is now deterministic:
+  **`2 + 悟性 ÷ 100`** mastery points, with flat per-source bonuses (secret
+  realms +4, tribulations +8, ...). High-悟性 cultivators rank up faster.
+- **Migration 016** — re-keys every law's `mastery_effect` ladder to the five
+  rank thresholds (with new Rank-5 capstones: `space_dominion`,
+  `karmic_justice`, `sword_dominion`, ...) and backfills the legacy milestone
+  booleans (now derived from mastery, kept for schema stability).
+- **`/law_status` crash fix** — the command referenced `core_items` without
+  importing it; it now shows the full rank ladder with per-rank resistance
+  instead of crashing.
+- **Easier to tune** — every law number (rank thresholds, resistance per rank,
+  insight base, source bonuses) is a named constant in `core/dao_laws.py`;
+  all law logic consolidated into that one file with a thin cog on top.
+
+### Changed
+
+- `/comprehend` shows rank-up banners instead of milestone banners; the Dao
+  Fusion gate message reads Tier 8→9.
+
+### Tests
+
+- Dao Law tests rewritten for ranks/resistance/counter/deterministic insight
+  (7 tests) + migration-016 checks. **200 tests passing.**
+
 ## [1.5.0] — 2026-08-05 — Stored Qi (存灵气) all-rounder pool 💧
 
 ### Added

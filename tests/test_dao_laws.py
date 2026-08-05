@@ -1,5 +1,4 @@
 """Pure logic unit tests for Dao Laws (core/dao_laws.py)."""
-import random
 from core import dao_laws as core_dl
 
 
@@ -19,38 +18,65 @@ def test_can_comprehend_law_gates():
     assert ok and err is None
 
 
-def test_calculate_insight_gain():
-    random.seed(42)
-    gain_comp = core_dl.calculate_insight_gain("comprehend")
-    assert 1.0 <= gain_comp <= 3.0
-
-    gain_trib = core_dl.calculate_insight_gain("tribulation")
-    assert 5.0 <= gain_trib <= 10.0
-
-
-def test_check_milestones():
-    # Crossing 25%
-    crossed = core_dl.check_milestones(26.5, 23.0)
-    assert crossed == [25]
-
-    # Crossing multiple (e.g. big tribulation gain from 22% to 52%)
-    crossed_multi = core_dl.check_milestones(52.0, 22.0)
-    assert crossed_multi == [25, 50]
-
-    # Crossing 100%
-    crossed_max = core_dl.check_milestones(100.0, 95.0)
-    assert crossed_max == [100]
+def test_calculate_insight_gain_is_deterministic_and_aptitude_scaled():
+    # Base 2 at low 悟性; +1 per 100 comprehension; flat per-source bonus
+    assert core_dl.calculate_insight_gain(10, "comprehend") == 2.0
+    assert core_dl.calculate_insight_gain(100, "comprehend") == 3.0
+    assert core_dl.calculate_insight_gain(510, "comprehend") == 7.0
+    # Sources grant flat bonuses (secret realm +4, tribulation +8)
+    assert core_dl.calculate_insight_gain(10, "secret_realm") == 6.0
+    assert core_dl.calculate_insight_gain(10, "tribulation") == 10.0
+    assert core_dl.calculate_insight_gain(10, "world_boss") == 3.0
 
 
-def test_resolve_law_effects():
+def test_check_rank_ups():
+    # Crossing 20% -> entering Rank 1
+    assert core_dl.check_rank_ups(26.5, 19.0) == [1]
+    # Big gain 22 -> 52 crosses 40 (Rank 2)
+    assert core_dl.check_rank_ups(52.0, 22.0) == [2]
+    # 95 -> 100 crosses the final threshold (Rank 5)
+    assert core_dl.check_rank_ups(100.0, 95.0) == [5]
+    # No crossing
+    assert core_dl.check_rank_ups(30.0, 25.0) == []
+
+
+def test_law_rank_and_resistance():
+    assert core_dl.law_rank(0.0) == 0
+    assert core_dl.law_rank(19.9) == 0
+    assert core_dl.law_rank(20.0) == 1
+    assert core_dl.law_rank(100.0) == 5
+
+    # Resistance: 5% per rank, 25% at Rank 5 (user's chosen curve)
+    assert core_dl.law_resistance(20.0) == 0.05
+    assert core_dl.law_resistance(59.9) == 0.10   # Rank 2
+    assert core_dl.law_resistance(79.0) == 0.15   # Rank 3
+    assert core_dl.law_resistance(100.0) == 0.25
+
+    assert "Unranked" in core_dl.law_rank_label(0.0)
+    assert core_dl.law_rank_label(60.0) == "Rank 3 · Realization (真悟)"
+
+    # Next-rank progress hints
+    assert core_dl.next_rank_progress(25.0) == (15, 40)
+    assert core_dl.next_rank_progress(100.0) == (0, 100.0)
+
+
+def test_law_counter_advantage_is_deterministic():
+    # 2+ ranks ahead -> counter (no RNG)
+    assert core_dl.law_counter_advantage(100.0, 55.0) is True   # Rank 5 vs 2
+    assert core_dl.law_counter_advantage(80.0, 40.0) is True     # Rank 4 vs 2
+    assert core_dl.law_counter_advantage(60.0, 40.0) is False    # Rank 3 vs 2
+    assert core_dl.law_counter_advantage(55.0, 100.0) is False   # behind
+
+
+def test_resolve_law_effects_rank_keys():
     cultivator_laws = [
         {
             "mastery_percentage": 55.0,
-            "mastery_effect": '{"25": {"damage_bonus": 0.15}, "50": {"technique": "Sword Intent"}}',
+            "mastery_effect": '{"20": {"damage_bonus": 0.15}, "40": {"technique": "Sword Intent"}}',
         },
         {
             "mastery_percentage": 80.0,
-            "mastery_effect": '{"25": {"dodge_bonus": 0.10}, "75": {"breakthrough_bonus": 0.20}}',
+            "mastery_effect": '{"20": {"dodge_bonus": 0.10}, "60": {"breakthrough_bonus": 0.20}}',
         },
     ]
 
@@ -59,6 +85,30 @@ def test_resolve_law_effects():
     assert effects["dodge_bonus"] == 0.10
     assert effects["breakthrough_bonus"] == 0.20
     assert "Sword Intent" in effects["unlocked_techniques"]
+
+
+def test_resolve_law_effects_reaches_rank_five_capstones():
+    # Rank-5 capstone keys ('80'/'100') are reached at high mastery without error
+    cultivator_laws = [
+        {
+            "mastery_percentage": 100.0,
+            "mastery_effect": '{"20": {"damage_bonus": 0.15}, "80": {"execute_sub_20": true}, "100": {"sword_dominion": true}}',
+        },
+    ]
+    effects = core_dl.resolve_law_effects(cultivator_laws)
+    assert effects["damage_bonus"] == 0.15  # lower-rank effect still applied
+    assert effects["unlocked_techniques"] == []  # capstones are flags, not techniques
+
+
+def test_resolve_law_effects_respects_mastery_gate():
+    cultivator_laws = [
+        {
+            "mastery_percentage": 10.0,
+            "mastery_effect": '{"20": {"damage_bonus": 0.50}}',
+        },
+    ]
+    effects = core_dl.resolve_law_effects(cultivator_laws)
+    assert effects["damage_bonus"] == 0.0
 
 
 def test_has_dao_fusion_requirement():

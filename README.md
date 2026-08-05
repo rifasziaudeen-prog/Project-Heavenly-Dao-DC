@@ -59,9 +59,9 @@ enabled (required for passive Qi) — see `.env.example` for the full walkthroug
 | `/event_status <event_id>` | Check World Boss HP bar, current phase, narrative state, and damage leaderboard |
 | `/event_claim <event_id>` | Claim post-event loot rewards based on damage rank |
 | `/spawn_event <type>` | **Admin.** Schedule or immediately spawn a server World Event |
-| `/laws` | View fundamental Dao Laws, your current mastery percentages, and active milestones |
-| `/comprehend <law_name>` | Meditate on a law to gain insight and mastery (Tier 5+, 4-hour cooldown) |
-| `/law_status <law_name>` | View detailed lore, requirements, and milestone effects for a law |
+| `/laws` | View fundamental Dao Laws, your 5-rank mastery, resistance, and next-rank progress |
+| `/comprehend <law_name>` | Meditate on a law to gain insight (deterministic, scales with 悟性) (Tier 5+) |
+| `/law_status <law_name>` | View detailed lore, the rank ladder, and per-rank effects for a law |
 | `/market` | Browse active market listings in the Heavenly Auction House |
 | `/sell <item_name> <price>` | List an item on the market (5% listing fee, max 5 listings) |
 | `/buy <listing_id>` | Instant buy an item at buyout/listed price |
@@ -291,13 +291,16 @@ Server-wide World Boss encounters scheduled in advance featuring 5 event types a
 * **Sect Sacrifice Buffs**: Patriarchs spend treasury spirit stones for party-wide damage buffs (up to +50%), healing, and debuff immunity.
 * **Leaderboard Rewards**: Top damage ranks earn unique titles, God/Immortal/Heaven-grade loot items, and spirit stone rewards.
 
-## Dao Laws Endgame System (Phase 4, Step 2)
+## Dao Laws Endgame System — 5 Ranks (v1.6.0)
 
-High-tier cultivators (Nascent Soul / Tier 5+) comprehend the 5 Fundamental Laws of Existence (`Space`, `Time`, `Karma`, `Sword`, `Alchemy`).
+High-tier cultivators (Nascent Soul / Tier 5+) comprehend the 5 Fundamental Laws of Existence (`Space`, `Time`, `Karma`, `Sword`, `Alchemy`). Each law has **5 Ranks**, unlocking at 20/40/60/80/100 mastery:
 
-* **Insight Sources**: Meditation (`/comprehend`), secret realm epiphanies, tribulation survivals, world boss participation, ancient texts, and sect array meditation.
-* **Milestone Unlocks**: 25% (First Vision), 50% (Technique Unlock: `Void Step`, `Temporal Cultivation`, `Sword Intent`), 75% (Dao Resonance), and 100% (Complete Mastery).
-* **Dao Fusion Prerequisites**: Reaching **100% Complete Mastery** in at least 1 Fundamental Law is required for **Dao Fusion Ascension (Tier 8→9)**.
+* **Rank ladder** — Rank 1 **Insight 洞察** · Rank 2 **Comprehension 领悟** · Rank 3 **Realization 真悟** · Rank 4 **Enlightenment 明悟** · Rank 5 **Transcendence 超脱**.
+* **Resistance (5% → 25%)** — every rank grants **5% damage reduction** against attacks of that law's type (Rank 5 = 25%). Two ranks ahead of an attacker means a **deterministic counter** — no dice, no percentages-of-percentages.
+* **Aptitude = learning speed** — insight gain is deterministic: **`2 + 悟性 ÷ 100`** mastery points per `/comprehend`, with flat bonuses from other sources (secret realms +4, tribulations +8). High-悟性 cultivators climb ranks faster; that's the payoff of the stat.
+* **Rank effects** — each rank unlocks the law's effect ladder (`Void Step`, `Temporal Cultivation`, `Sword Intent`, `teleport`, and new Rank-5 capstones like `space_dominion` / `karmic_justice`).
+* **Dao Fusion Prerequisites**: reaching **Rank 5 (100% Complete Mastery)** in at least 1 Fundamental Law is required for **Dao Fusion Ascension (Tier 8→9)**.
+* **All numbers are named constants in one file** (`core/dao_laws.py`) — tuning a rank threshold or resistance is a one-line change.
 
 ## Auction House & P2P Trading (Phase 4, Step 3)
 
@@ -325,7 +328,7 @@ scripts/        Automation scripts (setup_discord_server.py, migrate_sqlite_to_p
                 validate_migration.py, github_backup.py)
 templates/      Narrative fragment JSON — add files to extend flavor
 config/         Env-driven settings (default.py, postgres.py)
-tests/          pytest suite (197 tests covering balance, bonds, sects, items, alchemy, reincarnation,
+tests/          pytest suite (200 tests covering balance, bonds, sects, items, alchemy, reincarnation,
                 secret realms, world events, dao laws, auction, affinities, postgres, migrations, github backup, server layout)
 ```
 
