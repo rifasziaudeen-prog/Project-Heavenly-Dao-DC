@@ -17,7 +17,7 @@ from discord.ext import commands, tasks
 
 from bot import utils as ui
 from config import default as config
-from core import anti_cheat
+from core import anti_cheat, math as gm
 from core.groq_client import GroqClient
 from core.template_engine import TemplateEngine
 from db.database import Database, backup_database, run_migrations
@@ -98,7 +98,7 @@ class HeavenlyDaoBot(commands.Bot):
 
         for loop in (self.qi_flush_loop, self.presence_loop,
                      self.backup_loop, self.event_scheduler_loop,
-                     self.market_expiry_loop):
+                     self.market_expiry_loop, self.stored_qi_regen_loop):
             if not loop.is_running():
                 loop.start()
 
@@ -244,6 +244,37 @@ class HeavenlyDaoBot(commands.Bot):
     async def presence_loop(self) -> None:
         await self._update_presence()
 
+    @tasks.loop(seconds=config.STORED_QI_REGEN_INTERVAL_SECONDS)
+    async def stored_qi_regen_loop(self) -> None:
+        await self.tick_stored_qi_regen()
+
+    async def tick_stored_qi_regen(self) -> None:
+        """Apply one hour of natural Stored Qi regen to every cultivator.
+
+        Pure per-row math from core/math.py: gain = base regen + capped flat
+        bonus, clamped to the effective max (rolled base + future bonuses).
+        """
+        rows = await self.db.fetchall(
+            "SELECT id, stored_qi_current, stored_qi_max, stored_qi_max_bonus,"
+            " stored_qi_regen_bonus FROM cultivators"
+        )
+        updates: list[tuple[int, int]] = []
+        for r in rows:
+            effective_max = gm.stored_qi_effective_max(
+                r["stored_qi_max"], r["stored_qi_max_bonus"]
+            )
+            gain = gm.stored_qi_regen_per_hour(r["stored_qi_regen_bonus"])
+            new_val = min(effective_max, r["stored_qi_current"] + gain)
+            if new_val != r["stored_qi_current"]:
+                updates.append((new_val, r["id"]))
+        if updates:
+            try:
+                await self.db.executemany(
+                    "UPDATE cultivators SET stored_qi_current=? WHERE id=?", updates
+                )
+            except Exception:
+                log.exception("stored Qi regen tick failed; %d rows skipped", len(updates))
+
     @tasks.loop(hours=config.BACKUP_INTERVAL_HOURS)
     async def backup_loop(self) -> None:
         dest = await backup_database(self.db)
@@ -336,6 +367,10 @@ class HeavenlyDaoBot(commands.Bot):
 
     @backup_loop.before_loop
     async def _before_backup(self) -> None:
+        await self.wait_until_ready()
+
+    @stored_qi_regen_loop.before_loop
+    async def _before_stored_qi_regen(self) -> None:
         await self.wait_until_ready()
 
     @market_expiry_loop.before_loop

@@ -231,6 +231,15 @@ class ItemsCog(commands.Cog):
             )
             result_msg += f" Absorbed protective charm **{ctype.replace('_', ' ').title()}**!"
 
+        elif etype == "stored_qi_restore":
+            amount = eff.get("amount", 0)
+            await self.bot.db.execute(
+                "UPDATE cultivators SET stored_qi_current ="
+                " MIN(stored_qi_max + stored_qi_max_bonus, stored_qi_current + ?) WHERE id=?",
+                (amount, row["id"]),
+            )
+            result_msg += f" Restored **+{amount} Stored Qi (存灵气)**!"
+
         # Consume 1 quantity
         if item["quantity"] <= 1:
             await self.bot.db.execute("DELETE FROM items WHERE id=?", (item["id"],))

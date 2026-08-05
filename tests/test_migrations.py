@@ -20,7 +20,7 @@ def test_migrations_apply_and_are_idempotent():
             db = Database(Path(d) / "mig.db")
             await db.connect()
             applied = await run_migrations(db)
-            assert applied == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14]
+            assert applied == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15]
 
             rows = await db.fetchall(
                 "SELECT name FROM sqlite_master WHERE type='table'"
@@ -87,6 +87,16 @@ def test_migrations_apply_and_are_idempotent():
                         "transcendence_capacity_bonus", "transcendence_qi_gain_bonus"):
                 assert col in cult_cols
 
+            # Migration 015 additions: Stored Qi pool + pill seeds
+            for col in ("stored_qi_current", "stored_qi_max",
+                        "stored_qi_max_bonus", "stored_qi_regen_bonus"):
+                assert col in cult_cols
+            sq_pills = await db.fetchone(
+                "SELECT COUNT(*) AS c FROM item_templates WHERE item_type='Pill'"
+                " AND name LIKE 'Stored Qi %'"
+            )
+            assert sq_pills["c"] == 3
+
             # Idempotent: second run applies nothing
             assert await run_migrations(db) == []
             await db.close()
@@ -107,7 +117,7 @@ def test_migration_rerun_tolerates_duplicate_columns():
             await db.execute("DELETE FROM schema_migrations WHERE version IN (2,3,4,5,6,7,8,9,10)")
             await run_migrations(db)  # must not raise "duplicate column name"
             rows = await db.fetchall("SELECT version FROM schema_migrations")
-            assert {r["version"] for r in rows} == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14}
+            assert {r["version"] for r in rows} == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15}
             await db.close()
 
     asyncio.run(main())

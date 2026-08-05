@@ -62,6 +62,7 @@ QI_BUFFER_FLUSH_SECONDS: int = 60                 # memory buffer -> DB flush ca
 QI_BUFFER_MAX_ROWS: int = 4000                    # flush early if buffer explodes
 BACKUP_INTERVAL_HOURS: int = 24
 PRESENCE_UPDATE_MINUTES: int = 5
+STORED_QI_REGEN_INTERVAL_SECONDS: int = 3600   # hourly Stored Qi regen tick
 WORLD_EVENT_POLL_SECONDS: int = 30                # scheduler cadence
 MARKET_EXPIRY_POLL_SECONDS: int = 60              # auction expiry sweep cadence
 FLAG_DENY_THRESHOLD: int = 3                      # deny attempts before anti-cheat flag

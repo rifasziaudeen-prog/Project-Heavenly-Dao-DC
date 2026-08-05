@@ -51,6 +51,9 @@ def format_effect_description(effect: dict, lang: str = "bilingual") -> str:
     if etype == "protection":
         ctype = effect.get("charm_type", "charm").replace("_", " ").title()
         return f"Grants {ctype} Charm" if lang == "english" else f"获得 {ctype} 护符"
+    if etype == "stored_qi_restore":
+        amount = effect.get("amount", 0)
+        return f"+{amount} Stored Qi (存灵气)" if lang == "english" else f"+{amount} 存灵气"
     return str(effect)
 
 

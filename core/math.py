@@ -323,6 +323,98 @@ def apply_erasure_to_stats(stats: dict[str, int], keep: str) -> dict[str, int]:
 
 
 # ---------------------------------------------------------------------------
+# Stored Qi (存灵气) — the all-rounder resource pool
+#
+# Separate from dantian Qi. Spent on techniques, artifacts, laws, and future
+# combat actions; restored slowly over time or instantly via pills.
+# ---------------------------------------------------------------------------
+STORE_QI_MIN = 100                 # randomized awakening max: 100-300
+STORE_QI_MAX = 300
+STORE_QI_CHAOS_BONUS = 50          # Chaos Five-Element Root grants +50 max
+STORE_QI_BASE_REGEN = 4            # natural regen: points per hour
+STORE_QI_REGEN_BONUS_CAP = 20      # max extra regen from pills/passives/techniques
+
+# Explicit per-realm burn cost (cultivation base Qi consumed by one overdraft).
+# Tuning-friendly: this table is the only knob.
+STORE_QI_BURN_COST: dict[int, int] = {
+    1: 150, 2: 300, 3: 600, 4: 1_200, 5: 2_500, 6: 5_000, 7: 10_000,
+    8: 20_000, 9: 40_000, 10: 80_000, 11: 160_000, 12: 320_000,
+    13: 640_000, 14: 1_280_000, 15: 2_560_000, 16: 5_120_000,
+}
+
+
+def roll_stored_qi_max(profile=None) -> int:
+    """Randomized Stored Qi max on awakening: 100-300 (+50 for Chaos Root).
+
+    Accepts an AptitudeProfile, a dict, or None so future systems (Heaven
+    Chosen, special physiques) can extend it by stacking on top.
+    """
+    base = random.randint(STORE_QI_MIN, STORE_QI_MAX)
+    if profile is not None:
+        if isinstance(profile, dict):
+            root = profile.get("special_root")
+        else:
+            root = getattr(profile, "special_root", None)
+        if root == "chaos":
+            base += STORE_QI_CHAOS_BONUS
+    return base
+
+
+def stored_qi_effective_max(stored_qi_max: int, max_bonus: int = 0) -> int:
+    """Rolled base + any flat bonuses (Heaven Chosen, future passives)."""
+    return max(0, int(stored_qi_max)) + max(0, int(max_bonus))
+
+
+def stored_qi_regen_per_hour(regen_bonus: int = 0) -> int:
+    """Natural regen plus capped flat bonus from pills/passives/techniques."""
+    return STORE_QI_BASE_REGEN + min(max(0, int(regen_bonus)), STORE_QI_REGEN_BONUS_CAP)
+
+
+def stored_qi_restore_amount(current: int, maximum: int, amount: int) -> int:
+    """Clamp an instant restore to the effective max."""
+    return min(max(0, int(maximum)), max(0, int(current)) + max(0, int(amount)))
+
+
+# ---------------------------------------------------------------------------
+# Cultivation Base overdraft (burn-to-continue)
+#
+# When Stored Qi runs out mid-combat, a cultivator may burn dantian Qi. Each
+# burn costs a fixed per-realm chunk (STORE_QI_BURN_COST) that is PERMANENTLY
+# lost from the cultivation base. Consequences escalate by cumulative burn
+# count inside the fight: 3rd -> Heart Demon, 5th -> forced retreat or Qi
+# Deviation, 7th -> Heavenly Dao Erasure check (tier 8+).
+# ---------------------------------------------------------------------------
+def burn_cost(realm_tier: int) -> int:
+    """Dantian Qi consumed by one overdraft at this realm."""
+    return STORE_QI_BURN_COST.get(realm_tier, STORE_QI_BURN_COST[1])
+
+
+def burn_consequence(burn_count: int, realm_tier: int, erasure_enabled: bool = True) -> dict:
+    """What the burn_count-th cumulative burn triggers (pure & deterministic).
+
+    Returns:
+      heart_demon_delta  float — Heart Demon gained (allowed % exception)
+      retreat_or_deviation bool — at 5+ burns: forced retreat OR Qi Deviation
+                                  roll (the caller flips; deviation failure
+                                  drops one layer)
+      erasure_roll       bool — at 7+ burns on tier 8+: Heavenly Dao Erasure
+                                check
+    """
+    out = {
+        "heart_demon_delta": 0.0,
+        "retreat_or_deviation": False,
+        "erasure_roll": False,
+    }
+    if burn_count >= 3:
+        out["heart_demon_delta"] = 0.10
+    if burn_count >= 5:
+        out["retreat_or_deviation"] = True
+    if burn_count >= 7 and erasure_enabled and realm_tier >= ERASURE_MIN_TIER:
+        out["erasure_roll"] = True
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Transcendence — endgame prestige (Beyond Dao, 9th layer)
 # ---------------------------------------------------------------------------
 TRANSCENDENCE_REALM = MAX_TIER

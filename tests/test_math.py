@@ -171,6 +171,50 @@ def test_transcendence_titles():
     assert gm.transcendence_title(11) == "Transcendent 11"
 
 
+def test_stored_qi_roll_bounds():
+    for _ in range(100):
+        v = gm.roll_stored_qi_max()
+        assert gm.STORE_QI_MIN <= v <= gm.STORE_QI_MAX
+    # Chaos Five-Element Root always grants +50 on top
+    for _ in range(100):
+        chaos = gm.roll_stored_qi_max({"special_root": "chaos"})
+        assert gm.STORE_QI_MIN + gm.STORE_QI_CHAOS_BONUS <= chaos <= gm.STORE_QI_MAX + gm.STORE_QI_CHAOS_BONUS
+    # Non-chaos profile gets no bonus
+    v = gm.roll_stored_qi_max({"special_root": None})
+    assert v <= gm.STORE_QI_MAX
+
+
+def test_stored_qi_regen_and_restore():
+    assert gm.stored_qi_effective_max(100, 0) == 100
+    assert gm.stored_qi_effective_max(250, 50) == 300  # future Heaven Chosen-style bonus
+    assert gm.stored_qi_regen_per_hour(0) == gm.STORE_QI_BASE_REGEN
+    assert gm.stored_qi_regen_per_hour(5) == gm.STORE_QI_BASE_REGEN + 5
+    # Bonus is capped so pills/passives can't turbo-charge regen
+    assert gm.stored_qi_regen_per_hour(999) == gm.STORE_QI_BASE_REGEN + gm.STORE_QI_REGEN_BONUS_CAP
+    # Restore clamps to effective max and ignores negatives
+    assert gm.stored_qi_restore_amount(50, 100, 80) == 100
+    assert gm.stored_qi_restore_amount(50, 100, 30) == 80
+    assert gm.stored_qi_restore_amount(50, 100, -20) == 50
+
+
+def test_burn_cost_and_consequences():
+    # Explicit per-realm cost table (flat numbers, no percentages)
+    assert gm.burn_cost(1) == 150
+    assert gm.burn_cost(9) == 40_000
+    assert gm.burn_cost(16) == 5_120_000
+    # Burn #1: nothing extra
+    c1 = gm.burn_consequence(1, 5)
+    assert c1["heart_demon_delta"] == 0.0 and not c1["retreat_or_deviation"] and not c1["erasure_roll"]
+    # Burn #3: Heart Demon +10%
+    assert gm.burn_consequence(3, 5)["heart_demon_delta"] == 0.10
+    # Burn #5: forced retreat OR Qi deviation
+    assert gm.burn_consequence(5, 5)["retreat_or_deviation"] is True
+    # Burn #7: erasure check only on tier 8+ and only when enabled
+    assert gm.burn_consequence(7, 7)["erasure_roll"] is False
+    assert gm.burn_consequence(7, 8)["erasure_roll"] is True
+    assert gm.burn_consequence(7, 8, erasure_enabled=False)["erasure_roll"] is False
+
+
 def test_erasure_only_rolls_tier_8_plus():
     assert gm.erasure_should_roll(7, True) is False
     assert gm.erasure_should_roll(8, True) is True

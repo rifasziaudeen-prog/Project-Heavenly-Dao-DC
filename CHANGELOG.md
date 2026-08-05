@@ -5,6 +5,37 @@ All notable changes to the **Heavenly Dao Engine** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] — 2026-08-05 — Stored Qi (存灵气) all-rounder pool 💧
+
+### Added
+
+- **Stored Qi pool** (`core/math.py` + `cogs/cultivation.py`) — a second
+  resource separate from dantian Qi, ready to power techniques / artifacts /
+  laws when the combat engine lands. Every cultivator rolls a **randomized
+  100–300 max** on awakening; a **Chaos Five-Element Root grants +50**.
+- **Migration 015** — `stored_qi_current` / `stored_qi_max` /
+  `stored_qi_max_bonus` / `stored_qi_regen_bonus` columns with a deterministic
+  backfill for existing players, plus three seeded Stored Qi pills.
+- **Slow natural regen**: 4/h base, ticked hourly by a new background loop
+  (`bot/main.py`); a flat capped regen bonus (+20/h) is the hook pills,
+  passives, and techniques will use to speed it up.
+- **Stored Qi pills** — `Stored Qi Elixir` (+30), `Stored Qi Concentrate`
+  (+80), `Stored Qi Heavenly Dew` (+200), all consumable via `/use`
+  (`stored_qi_restore` effect in `cogs/items.py`).
+- **Burn-to-continue rules** (`core/math.py`) — the cultivation-base overdraft
+  mechanic, fully deterministic: fixed per-realm burn cost table and
+  consequences escalating by burn count (3rd → Heart Demon +10%, 5th → forced
+  retreat or Qi Deviation, 7th → erasure check on tier 8+). The interactive
+  burn button ships with the combat engine.
+- **`/profile`** now shows your Stored Qi pool, effective max, and regen rate.
+- **PostgreSQL schema** — Stored Qi columns added for parity.
+
+### Tests
+
+- 3 new math tests (awakening roll bounds incl. Chaos Root, regen/restore
+  clamps, burn cost + consequence escalation) plus migration-015 checks.
+  **197 tests passing.**
+
 ## [1.4.0] — 2026-08-05 — 16 Realms × 9 Layers + Transcendence ⛰️
 
 ### Added

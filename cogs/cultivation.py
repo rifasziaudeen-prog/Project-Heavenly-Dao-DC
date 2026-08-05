@@ -221,6 +221,8 @@ class CultivationCog(commands.Cog):
         # ── Roll Spiritual Aptitude Profile ───────────────────────────────
         profile = aff.generate_initial_aptitudes()
         db_fields = profile.to_db_dict()
+        # Awakening also rolls the Stored Qi pool max (100-300, +50 Chaos Root)
+        db_fields["stored_qi_max"] = gm.roll_stored_qi_max(profile)
         set_clause = ", ".join(f"{k}=?" for k in db_fields)
         await self.bot.db.execute(
             f"UPDATE cultivators SET {set_clause} WHERE guild_id=? AND user_id=?",
@@ -692,6 +694,14 @@ class CultivationCog(commands.Cog):
             name=ui.format_title("Dantian · 丹田", lang),
             value=(f"{ui.progress_bar(row['qi_current'], row['qi_capacity'])}\n"
                    f"{ui.format_qi(row['qi_current'], lang)} / {ui.format_qi(row['qi_capacity'], lang)}"),
+            inline=False,
+        )
+        sq_max = gm.stored_qi_effective_max(row["stored_qi_max"], row["stored_qi_max_bonus"])
+        embed.add_field(
+            name=ui.format_title("Stored Qi · 存灵气", lang),
+            value=(f"{ui.progress_bar(row['stored_qi_current'], sq_max)}\n"
+                   f"{row['stored_qi_current']} / {sq_max}"
+                   f" · regen {gm.stored_qi_regen_per_hour(row['stored_qi_regen_bonus'])}/h"),
             inline=False,
         )
         embed.add_field(

@@ -38,6 +38,10 @@ CREATE TABLE IF NOT EXISTS cultivators (
     legacy_passives                   JSONB   NOT NULL DEFAULT '[]'::jsonb,
     transcendence_capacity_bonus      INTEGER NOT NULL DEFAULT 0,
     transcendence_qi_gain_bonus       INTEGER NOT NULL DEFAULT 0,
+    stored_qi_current                 INTEGER NOT NULL DEFAULT 0,
+    stored_qi_max                     INTEGER NOT NULL DEFAULT 100 CHECK (stored_qi_max BETWEEN 100 AND 350),
+    stored_qi_max_bonus               INTEGER NOT NULL DEFAULT 0,
+    stored_qi_regen_bonus             INTEGER NOT NULL DEFAULT 0,
     last_breakthrough_at              TIMESTAMPTZ,
     created_at                        TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_cultivators_guild_user UNIQUE (guild_id, user_id)

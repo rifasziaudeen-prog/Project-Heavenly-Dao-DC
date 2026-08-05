@@ -140,6 +140,31 @@ beyond the mortal heavens:
   Transcendent Physique). Your items, sect, bonds, karma, aptitudes, and Dao
   Laws all survive the reset.
 
+## Stored Qi · 存灵气 (v1.5.0)
+
+**Stored Qi** is the all-rounder resource pool — separate from your dantian Qi.
+It will power techniques, artifacts, and law-folding in combat, and can also be
+spent by future systems. Think of it as your *reserve of intent*.
+
+* **Randomized awakening max**: every cultivator rolls **100–300 Stored Qi**
+  on `/register`; a **Chaos Five-Element Root (混沌五行根)** grants **+50**.
+  Future systems (e.g. Heaven-Chosen physiques, passives) stack flat bonuses on
+  top via `stored_qi_max_bonus`.
+* **Slow natural regen**: **4 Stored Qi per hour** (about a day for a full
+  pool) — deliberate pacing. Regen can be sped with pills, passives, and
+  techniques via a flat, capped regen bonus (+20/h max). The bot ticks this
+  hourly.
+* **Pills**: `Stored Qi Elixir` (+30), `Stored Qi Concentrate` (+80), and
+  `Stored Qi Heavenly Dew` (+200) restore the pool instantly via `/use`.
+* **Burn to continue (overdraft)**: when Stored Qi runs dry mid-fight, you may
+  **burn your cultivation base** — dantian Qi is consumed permanently at a
+  fixed per-realm cost (no percentages; one flat table in `core/math.py`).
+  Consequences escalate by burn count: **3rd** → Heart Demon +10%, **5th** →
+  forced retreat or Qi Deviation (failure drops one layer), **7th** → Heavenly
+  Dao Erasure check (tier 8+). The interactive burn button arrives with the
+  combat engine; the deterministic rules are already in and tested.
+* Your current pool and regen rate appear in `/profile` under **Stored Qi · 存灵气**.
+
 ## Spiritual Aptitudes & Martial Intent Engine (v1.1.0)
 
 Every cultivator awakens with a unique Spiritual Root (灵根) — a randomized profile of **Five Phases aptitudes (五行)**, **Martial Weapon Intents (武道真意)**, and a **Yin-Yang balance (阴阳)** that shapes how they grow and fight.
@@ -300,7 +325,7 @@ scripts/        Automation scripts (setup_discord_server.py, migrate_sqlite_to_p
                 validate_migration.py, github_backup.py)
 templates/      Narrative fragment JSON — add files to extend flavor
 config/         Env-driven settings (default.py, postgres.py)
-tests/          pytest suite (194 tests covering balance, bonds, sects, items, alchemy, reincarnation,
+tests/          pytest suite (197 tests covering balance, bonds, sects, items, alchemy, reincarnation,
                 secret realms, world events, dao laws, auction, affinities, postgres, migrations, github backup, server layout)
 ```
 
