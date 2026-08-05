@@ -333,7 +333,7 @@ scripts/        Automation scripts (setup_discord_server.py, migrate_sqlite_to_p
                 validate_migration.py, github_backup.py)
 templates/      Narrative fragment JSON — add files to extend flavor
 config/         Env-driven settings (default.py, postgres.py)
-tests/          pytest suite (218 tests covering balance, bonds, sects, items, alchemy, reincarnation,
+tests/          pytest suite (219 tests covering balance, bonds, sects, items, alchemy, reincarnation,
                 secret realms, world events, dao laws, auction, affinities, combat, postgres, migrations,
                 github backup, server layout)
 ```
