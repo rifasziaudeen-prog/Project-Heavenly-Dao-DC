@@ -37,6 +37,13 @@ createdb heavenly_dao
 psql -d heavenly_dao -f migrations/011_postgres_schema.sql
 ```
 
+> **⚠️ Global players (migration 018):** since v1.8.0 cultivators are keyed by
+> `user_id` alone (`UNIQUE(user_id)`, no per-guild rows) and carry a
+> `last_active_guild_id` for per-server leaderboards. Make sure the source
+> SQLite DB has migration 018 applied (the bot applies it automatically on
+> startup) before migrating — the target PostgreSQL schema in
+> `migrations/postgres/011_postgres_schema.sql` already matches.
+
 ### 2. Execute Automated Data Migration Script
 
 Run the automated data migration script to convert SQLite data and JSON fields:

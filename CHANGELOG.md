@@ -47,6 +47,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   killing blow (e.g. pill vs pill) is decided by remaining HP, or declared a
   draw with wagers returned.
 
+## [1.8.0] — 2026-08-05 — Global Player Profiles 🌍
+
+### Changed
+
+- **Players are now GLOBAL** — migration 018 replaces the per-guild
+  `UNIQUE(guild_id, user_id)` wall with `UNIQUE(user_id)`: one cultivation life
+  per Discord user, identical across every server the bot serves.
+- **Merge keep-the-strongest** — any pre-existing duplicate (the same user
+  registered in several servers) is merged into the strongest row (highest
+  realm, then layer, then dantian Qi, then oldest id), and every player-owned
+  row — items, companions, protection charms, qi history, breakthrough logs,
+  Dao Laws, techniques, alchemy attempts, reincarnation lives, secret realm
+  runs, event participation, market listings & bids, trade offers, combat
+  history, bonds (collapsed to one per pair), plus soft references (master,
+  sect patriarch, former companion owner) — is reparented onto the survivor.
+- **Per-server leaderboards via `last_active_guild_id`** — every command
+  refreshes the player's last-active server; `/leaderboard` and the Heaven
+  Panel rank the cultivators who last played in *that* server, showing global
+  progress. New indexes replace the old per-guild ones.
+- **The world stays per-server** — guild config, world events, qi audit logs,
+  anti-cheat flags, and combat logs keep their guild dimension.
+- **Global Groq quotas** — rate limits are per user, not per (user, guild).
+- **`/give`, `/profile`, `/register` and all player lookups** now fetch by
+  `user_id` alone; cogs' `_cultivator(guild_id, user_id)` helpers became
+  `_cultivator(user_id)`.
+- **Fixed**: migration 018 initially referenced `world_events.created_by`
+  (a PostgreSQL-only column) — removed so SQLite applies cleanly.
+
+### Added
+
+- `cultivators.last_active_guild_id` column + `idx_cultivators_user` unique
+  index (PostgreSQL schema updated to match: `UNIQUE(user_id)`).
+
 ## [1.6.0] — 2026-08-05 — Dao Law Ranks + Aptitude Learning Speed 📜
 
 ### Added

@@ -41,10 +41,9 @@ class SecretRealmsCog(commands.Cog):
     def __init__(self, bot) -> None:
         self.bot = bot
 
-    async def _cultivator(self, guild_id: int, user_id: int):
+    async def _cultivator(self, user_id: int):
         row = await self.bot.db.fetchone(
-            "SELECT * FROM cultivators WHERE guild_id=? AND user_id=?",
-            (guild_id, user_id),
+            "SELECT * FROM cultivators WHERE user_id=?", (user_id,)
         )
         return dict(row) if row else None
 
@@ -88,7 +87,7 @@ class SecretRealmsCog(commands.Cog):
         interaction: discord.Interaction,
         realm_name: str,
     ) -> None:
-        row = await self._cultivator(interaction.guild_id, interaction.user.id)
+        row = await self._cultivator(interaction.user.id)
         if not row:
             await interaction.response.send_message("Please `/register` first.", ephemeral=True)
             return
@@ -153,7 +152,7 @@ class SecretRealmsCog(commands.Cog):
         description="Explore the next encounter node in your active secret realm",
     )
     async def explore(self, interaction: discord.Interaction) -> None:
-        row = await self._cultivator(interaction.guild_id, interaction.user.id)
+        row = await self._cultivator(interaction.user.id)
         if not row:
             await interaction.response.send_message("Please `/register` first.", ephemeral=True)
             return
@@ -258,7 +257,7 @@ class SecretRealmsCog(commands.Cog):
         description="Retreat safely from your active secret realm run keeping acquired loot",
     )
     async def retreat(self, interaction: discord.Interaction) -> None:
-        row = await self._cultivator(interaction.guild_id, interaction.user.id)
+        row = await self._cultivator(interaction.user.id)
         if not row:
             await interaction.response.send_message("Please `/register` first.", ephemeral=True)
             return

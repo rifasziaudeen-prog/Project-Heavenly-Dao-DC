@@ -10,8 +10,9 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS cultivators (
     id                                SERIAL PRIMARY KEY,
-    guild_id                          BIGINT NOT NULL,
+    guild_id                          BIGINT NOT NULL,   -- home guild (legacy)
     user_id                           BIGINT NOT NULL,
+    last_active_guild_id              BIGINT,            -- powers per-server leaderboards
     username                          TEXT   NOT NULL,
     gender                            TEXT   NOT NULL DEFAULT 'unknown' CHECK (gender IN ('male', 'female', 'non_binary', 'unknown')),
     realm_tier                        INTEGER NOT NULL DEFAULT 1 CHECK (realm_tier BETWEEN 1 AND 16),
@@ -44,9 +45,10 @@ CREATE TABLE IF NOT EXISTS cultivators (
     stored_qi_regen_bonus             INTEGER NOT NULL DEFAULT 0,
     last_breakthrough_at              TIMESTAMPTZ,
     created_at                        TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_cultivators_guild_user UNIQUE (guild_id, user_id)
+    CONSTRAINT uq_cultivators_user UNIQUE (user_id)   -- GLOBAL players (018)
 );
-CREATE INDEX IF NOT EXISTS idx_cultivators_guild_user ON cultivators(guild_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_cultivators_last_active
+    ON cultivators(last_active_guild_id, realm_tier DESC);
 CREATE INDEX IF NOT EXISTS idx_cultivators_spirit_stones ON cultivators USING btree (spirit_stones DESC);
 CREATE INDEX IF NOT EXISTS idx_cultivators_titles_gin ON cultivators USING GIN (titles);
 

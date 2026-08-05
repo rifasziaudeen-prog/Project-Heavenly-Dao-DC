@@ -17,10 +17,9 @@ class WorldEventsCog(commands.Cog):
     def __init__(self, bot) -> None:
         self.bot = bot
 
-    async def _cultivator(self, guild_id: int, user_id: int):
+    async def _cultivator(self, user_id: int):
         row = await self.bot.db.fetchone(
-            "SELECT * FROM cultivators WHERE guild_id=? AND user_id=?",
-            (guild_id, user_id),
+            "SELECT * FROM cultivators WHERE user_id=?", (user_id,)
         )
         return dict(row) if row else None
 
@@ -71,7 +70,7 @@ class WorldEventsCog(commands.Cog):
         description="Register your participation in a world event",
     )
     async def event_join(self, interaction: discord.Interaction, event_id: int) -> None:
-        row = await self._cultivator(interaction.guild_id, interaction.user.id)
+        row = await self._cultivator(interaction.user.id)
         if not row:
             await interaction.response.send_message("Please `/register` first.", ephemeral=True)
             return
@@ -113,7 +112,7 @@ class WorldEventsCog(commands.Cog):
         description="Attack the active World Boss in an event you joined",
     )
     async def event_attack(self, interaction: discord.Interaction, event_id: int) -> None:
-        row = await self._cultivator(interaction.guild_id, interaction.user.id)
+        row = await self._cultivator(interaction.user.id)
         if not row:
             await interaction.response.send_message("Please `/register` first.", ephemeral=True)
             return
@@ -233,7 +232,7 @@ class WorldEventsCog(commands.Cog):
         description="Claim rewards for a completed world event",
     )
     async def event_claim(self, interaction: discord.Interaction, event_id: int) -> None:
-        row = await self._cultivator(interaction.guild_id, interaction.user.id)
+        row = await self._cultivator(interaction.user.id)
         if not row:
             await interaction.response.send_message("Please `/register` first.", ephemeral=True)
             return
@@ -325,7 +324,7 @@ class WorldEventsCog(commands.Cog):
         cfg = await self.bot._guild_config(interaction.guild_id)
         lang = cfg.get("xianxia_terms_language", "bilingual")
 
-        row = await self._cultivator(interaction.guild_id, interaction.user.id)
+        row = await self._cultivator(interaction.user.id)
         cult_id = row["id"] if row else None
 
         cursor = await self.bot.db.execute(

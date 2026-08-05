@@ -20,7 +20,7 @@ def test_migrations_apply_and_are_idempotent():
             db = Database(Path(d) / "mig.db")
             await db.connect()
             applied = await run_migrations(db)
-            assert applied == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17]
+            assert applied == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18]
 
             rows = await db.fetchall(
                 "SELECT name FROM sqlite_master WHERE type='table'"
@@ -34,10 +34,11 @@ def test_migrations_apply_and_are_idempotent():
             cols = [r["name"] for r in await db.fetchall("PRAGMA table_info(guild_config)")]
             assert "announcement_channel_id" in cols
 
-            # Critical P0 indexes
+            # Critical P0 indexes: per-guild unique is GONE, global unique is in
             idx = await db.fetchall("PRAGMA index_list('cultivators')")
             idx_names = {r["name"] for r in idx}
-            assert "idx_cultivators_guild_user" in idx_names
+            assert "idx_cultivators_guild_user" not in idx_names
+            assert "idx_cultivators_user" in idx_names
 
             # Migration 002 additions
             await db.fetchone("SELECT rage_breakthrough_bonus_until FROM cultivators LIMIT 1")
@@ -117,6 +118,9 @@ def test_migrations_apply_and_are_idempotent():
             )
             assert sand["c"] == 1
 
+            # Migration 018 additions: global players (last_active_guild_id)
+            assert "last_active_guild_id" in cult_cols
+
             # Idempotent: second run applies nothing
             assert await run_migrations(db) == []
             await db.close()
@@ -137,7 +141,7 @@ def test_migration_rerun_tolerates_duplicate_columns():
             await db.execute("DELETE FROM schema_migrations WHERE version IN (2,3,4,5,6,7,8,9,10)")
             await run_migrations(db)  # must not raise "duplicate column name"
             rows = await db.fetchall("SELECT version FROM schema_migrations")
-            assert {r["version"] for r in rows} == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17}
+            assert {r["version"] for r in rows} == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18}
             await db.close()
 
     asyncio.run(main())
@@ -216,7 +220,8 @@ def test_dao_bond_pair_unique_constraint():
     asyncio.run(main())
 
 
-def test_per_guild_unique_constraint():
+def test_global_unique_constraint():
+    """Migration 018 makes players GLOBAL: one row per Discord user, period."""
     async def main() -> None:
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
             db = Database(Path(d) / "uniq.db")
@@ -227,21 +232,101 @@ def test_per_guild_unique_constraint():
                 " VALUES (?,?,?)",
                 (111, 1, "a"),
             )
+            # Same user in ANY other guild must now collide (global unique)
             try:
                 await db.execute(
                     "INSERT INTO cultivators (user_id, guild_id, username)"
                     " VALUES (?,?,?)",
-                    (111, 1, "b"),  # same user, same guild -> must fail
+                    (111, 2, "b"),
                 )
-                raise AssertionError("Duplicate (guild, user) should have raised")
+                raise AssertionError("Duplicate user_id should have raised")
             except Exception:
                 pass
-            # Same user in a different guild is fine (multi-guild isolation)
+            # A different user in a different guild is still fine
             await db.execute(
                 "INSERT INTO cultivators (user_id, guild_id, username)"
                 " VALUES (?,?,?)",
-                (111, 2, "a"),
+                (222, 2, "c"),
             )
+            await db.close()
+
+    asyncio.run(main())
+
+
+def test_migration_018_global_merge():
+    """Duplicates merge keep-the-strongest; player rows reparent to the survivor."""
+    async def main() -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
+            db = Database(Path(d) / "merge.db")
+            await db.connect()
+            # Apply 1..17, then seed duplicates, then let 018 run for real.
+            await db.execute(
+                "CREATE TABLE IF NOT EXISTS schema_migrations ("
+                " version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL"
+                " DEFAULT (datetime('now')))"
+            )
+            await db.execute("INSERT INTO schema_migrations (version) VALUES (18)")
+            await run_migrations(db)
+            await db.execute("DELETE FROM schema_migrations WHERE version=18")
+            await db.execute(
+                "INSERT INTO cultivators (user_id, guild_id, username, realm_tier,"
+                " realm_sub_stage, qi_current) VALUES (?,?,?,?,?,?)",
+                (555, 1, "weak", 3, 2, 100),
+            )
+            weak = (await db.fetchone(
+                "SELECT id FROM cultivators WHERE username='weak'"))["id"]
+            await db.execute(
+                "INSERT INTO cultivators (user_id, guild_id, username, realm_tier,"
+                " realm_sub_stage, qi_current) VALUES (?,?,?,?,?,?)",
+                (555, 2, "strong", 7, 4, 900),
+            )
+            strong = (await db.fetchone(
+                "SELECT id FROM cultivators WHERE username='strong'"))["id"]
+            await db.execute(
+                "INSERT INTO items (owner_id, name, item_type) VALUES (?,?,?)",
+                (weak, "Sword of the Weak", "Weapon"),
+            )
+            await db.execute(
+                "INSERT INTO items (owner_id, name, item_type) VALUES (?,?,?)",
+                (strong, "Sword of the Strong", "Weapon"),
+            )
+            await db.execute(
+                "INSERT INTO dao_bonds (cultivator_a_id, cultivator_b_id, initiator_id,"
+                " bond_type, status) VALUES (?,?,?,'rival','active')",
+                (weak, strong, weak),
+            )
+            await db.execute(
+                "INSERT INTO cultivator_techniques (cultivator_id, technique_id)"
+                " VALUES (?,?)",
+                (weak, 1),
+            )
+
+            applied = await run_migrations(db)
+            assert 18 in applied
+
+            rows = await db.fetchall("SELECT * FROM cultivators")
+            assert len(rows) == 1, [dict(r) for r in rows]
+            keeper = dict(rows[0])
+            # Keep-the-strongest: the tier-7 row survives, weak row deleted
+            assert keeper["realm_tier"] == 7 and keeper["username"] == "strong"
+            assert keeper["id"] == strong
+            # Both items reparented onto the survivor
+            names = sorted(
+                r["name"] for r in await db.fetchall("SELECT name FROM items")
+            )
+            assert names == ["Sword of the Strong", "Sword of the Weak"], names
+            # The bond collapsed to a self-pair (weak->strong) and was deleted:
+            # a player cannot be their own partner. Unique index restored.
+            bonds = await db.fetchall(
+                "SELECT cultivator_a_id, cultivator_b_id FROM dao_bonds"
+            )
+            assert len(bonds) == 0, [dict(r) for r in bonds]
+            # Technique register reparented
+            tech = await db.fetchone(
+                "SELECT COUNT(*) AS c FROM cultivator_techniques WHERE cultivator_id=?",
+                (strong,),
+            )
+            assert tech["c"] == 1
             await db.close()
 
     asyncio.run(main())

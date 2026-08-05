@@ -222,9 +222,9 @@ class CombatCog(commands.Cog):
         self.battles: dict[tuple, BattleSession] = {}
 
     # ---------------------------------------------------------------- helpers
-    async def _cultivator(self, guild_id: int, user_id: int) -> dict | None:
+    async def _cultivator(self, user_id: int) -> dict | None:
         row = await self.bot.db.fetchone(
-            "SELECT * FROM cultivators WHERE guild_id=? AND user_id=?", (guild_id, user_id)
+            "SELECT * FROM cultivators WHERE user_id=?", (user_id,)
         )
         return dict(row) if row else None
 
@@ -403,8 +403,8 @@ class CombatCog(commands.Cog):
         if self._player_in_fight(opponent.id):
             await interaction.response.send_message(f"{opponent.display_name} is already in a fight!", ephemeral=True)
             return
-        me = await self._cultivator(interaction.guild_id, interaction.user.id)
-        them = await self._cultivator(interaction.guild_id, opponent.id)
+        me = await self._cultivator(interaction.user.id)
+        them = await self._cultivator(opponent.id)
         if not me or not them:
             await interaction.response.send_message("Both fighters must be `/register`ed.", ephemeral=True)
             return
@@ -759,7 +759,7 @@ class CombatCog(commands.Cog):
             names = ", ".join(b["name"] for b in core_cbt.SCRIPTED_BEASTS)
             await interaction.response.send_message(f"Unknown beast. Try: {names}", ephemeral=True)
             return
-        me = await self._cultivator(interaction.guild_id, interaction.user.id)
+        me = await self._cultivator(interaction.user.id)
         if not me:
             await interaction.response.send_message("Please `/register` first.", ephemeral=True)
             return
@@ -895,7 +895,7 @@ class CombatCog(commands.Cog):
     # ------------------------------------------------------------- /learn
     @app_commands.command(name="learn", description="Learn a technique by consuming a Technique Scroll")
     async def learn(self, interaction: discord.Interaction, technique_name: str) -> None:
-        me = await self._cultivator(interaction.guild_id, interaction.user.id)
+        me = await self._cultivator(interaction.user.id)
         if not me:
             await interaction.response.send_message("Please `/register` first.", ephemeral=True)
             return
@@ -944,7 +944,7 @@ class CombatCog(commands.Cog):
     # ------------------------------------------------------------- /techniques
     @app_commands.command(name="techniques", description="View your learned techniques, ranks, and entries")
     async def techniques(self, interaction: discord.Interaction) -> None:
-        me = await self._cultivator(interaction.guild_id, interaction.user.id)
+        me = await self._cultivator(interaction.user.id)
         if not me:
             await interaction.response.send_message("Please `/register` first.", ephemeral=True)
             return
@@ -969,7 +969,7 @@ class CombatCog(commands.Cog):
     # ------------------------------------------------------------- /reroll
     @app_commands.command(name="reroll", description="Reroll a technique's entries (1 Comprehension Sand + 100 💎)")
     async def reroll(self, interaction: discord.Interaction, technique_name: str) -> None:
-        me = await self._cultivator(interaction.guild_id, interaction.user.id)
+        me = await self._cultivator(interaction.user.id)
         if not me:
             await interaction.response.send_message("Please `/register` first.", ephemeral=True)
             return

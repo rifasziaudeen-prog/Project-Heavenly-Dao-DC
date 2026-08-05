@@ -76,8 +76,7 @@ class AffinitiesCog(commands.Cog):
     ) -> None:
         target = member or interaction.user
         row = await self.bot.db.fetchone(
-            "SELECT * FROM cultivators WHERE guild_id=? AND user_id=?",
-            (interaction.guild_id, target.id),
+            "SELECT * FROM cultivators WHERE user_id=?", (target.id,),
         )
         if not row:
             embed = discord.Embed(

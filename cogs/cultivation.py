@@ -203,8 +203,8 @@ class CultivationCog(commands.Cog):
     )
     async def register(self, interaction: discord.Interaction) -> None:
         row, is_new = await get_or_create_cultivator(
-            self.bot.db, interaction.guild_id, interaction.user.id,
-            interaction.user.display_name,
+            self.bot.db, interaction.user.id, interaction.user.display_name,
+            interaction.guild_id,
         )
         if not is_new:
             embed = discord.Embed(
@@ -225,8 +225,8 @@ class CultivationCog(commands.Cog):
         db_fields["stored_qi_max"] = gm.roll_stored_qi_max(profile)
         set_clause = ", ".join(f"{k}=?" for k in db_fields)
         await self.bot.db.execute(
-            f"UPDATE cultivators SET {set_clause} WHERE guild_id=? AND user_id=?",
-            (*db_fields.values(), interaction.guild_id, interaction.user.id),
+            f"UPDATE cultivators SET {set_clause} WHERE id=?",
+            (*db_fields.values(), row["id"]),
         )
 
         # ── Grant the free starting technique ─────────────────────────────
@@ -301,8 +301,8 @@ class CultivationCog(commands.Cog):
     )
     async def cultivate(self, interaction: discord.Interaction) -> None:
         row, _ = await get_or_create_cultivator(
-            self.bot.db, interaction.guild_id, interaction.user.id,
-            interaction.user.display_name,
+            self.bot.db, interaction.user.id, interaction.user.display_name,
+            interaction.guild_id,
         )
         if row["last_cultivate_at"]:
             last = ui.parse_db_time(row["last_cultivate_at"])
@@ -360,8 +360,8 @@ class CultivationCog(commands.Cog):
     )
     async def breakthrough(self, interaction: discord.Interaction) -> None:
         row, _ = await get_or_create_cultivator(
-            self.bot.db, interaction.guild_id, interaction.user.id,
-            interaction.user.display_name,
+            self.bot.db, interaction.user.id, interaction.user.display_name,
+            interaction.guild_id,
         )
         if row["realm_tier"] >= gm.MAX_TIER and row["realm_sub_stage"] >= gm.MAX_LAYER:
             embed = discord.Embed(
@@ -629,8 +629,8 @@ class CultivationCog(commands.Cog):
         amount: int = 1,
     ) -> None:
         row, _ = await get_or_create_cultivator(
-            self.bot.db, interaction.guild_id, interaction.user.id,
-            interaction.user.display_name,
+            self.bot.db, interaction.user.id, interaction.user.display_name,
+            interaction.guild_id,
         )
         if amount < 1:
             await interaction.response.send_message("Amount must be at least 1.", ephemeral=True)
@@ -665,8 +665,7 @@ class CultivationCog(commands.Cog):
     async def profile(self, interaction: discord.Interaction, member: discord.Member | None = None) -> None:
         target = member or interaction.user
         row = await self.bot.db.fetchone(
-            "SELECT * FROM cultivators WHERE guild_id=? AND user_id=?",
-            (interaction.guild_id, target.id),
+            "SELECT * FROM cultivators WHERE user_id=?", (target.id,)
         )
         if not row:
             embed = discord.Embed(
@@ -756,7 +755,7 @@ class CultivationCog(commands.Cog):
     async def leaderboard(self, interaction: discord.Interaction) -> None:
         rows = await self.bot.db.fetchall(
             "SELECT username, realm_tier, realm_sub_stage, qi_current, karma_points"
-            " FROM cultivators WHERE guild_id=?"
+            " FROM cultivators WHERE last_active_guild_id=?"
             " ORDER BY realm_tier DESC, realm_sub_stage DESC, qi_current DESC, karma_points DESC"
             " LIMIT 10",
             (interaction.guild_id,),

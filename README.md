@@ -37,7 +37,7 @@ enabled (required for passive Qi) — see `.env.example` for the full walkthroug
 | `/allocate <stat> [amount]` | Spend stat points earned from breakthroughs |
 | `/profile [member]` | View cultivation profile, spirit stone balance, and bond count |
 | `/aptitudes [member]` | View Spiritual Root profile — Five Phases, Martial Intents & Yin-Yang balance |
-| `/leaderboard` | Top 10 cultivators of this realm |
+| `/leaderboard` | Top 10 cultivators active in this server (profiles are global — see v1.8.0) |
 | `/inventory [page]` | View items in your spatial ring (pills, weapons, scrolls, talismans, materials) |
 | `/equip <item_name>` | Equip or unequip weapons or technique scrolls (max 1 weapon, 1 scroll) |
 | `/use <item_name>` | Consume pills, talismans, or charms (restores Qi, purges Heart Demon, or grants protection) |
@@ -328,14 +328,14 @@ cogs/           Slash-command modules (alchemy, auction, cultivation, dao_bonds,
 core/           Deterministic math, template engine, Groq client, anti-cheat, server layout blueprint,
                 alchemy, auction, dao_bonds, dao_laws, items, reincarnation, secret_realms, sects, world_events
 db/             Async SQLite & PostgreSQL layers (database.py, postgres.py), migration runner, queries
-migrations/     Versioned SQL migrations (001_init to 017_combat; postgres/011 + 012)
+migrations/     Versioned SQL migrations (001_init to 018_global_players; postgres/011 + 012)
 scripts/        Automation scripts (setup_discord_server.py, migrate_sqlite_to_postgres.py,
                 validate_migration.py, github_backup.py)
 templates/      Narrative fragment JSON — add files to extend flavor
 config/         Env-driven settings (default.py, postgres.py)
-tests/          pytest suite (219 tests covering balance, bonds, sects, items, alchemy, reincarnation,
-                secret realms, world events, dao laws, auction, affinities, combat, postgres, migrations,
-                github backup, server layout)
+tests/          pytest suite (220 tests covering balance, bonds, sects, items, alchemy, reincarnation,
+                secret realms, world events, dao laws, auction, affinities, combat, global players,
+                postgres, migrations, github backup, server layout)
 ```
 
 ## Backups & disaster recovery
@@ -418,6 +418,26 @@ To rebuild on a fresh server: invite the bot, run `/setup_server` once, done.
 * **Database keeps growing** — expected: `qi_buffer` is an append-only audit
   log. It gets monthly partitioning in the PostgreSQL migration.
 
+## Global Player Profiles (v1.8.0)
+
+Since migration 018, **players are GLOBAL** — one cultivation life per Discord
+user, identical in every server the bot serves. A cultivator who registers in
+Server A keeps their realm, Qi, items, techniques, laws, bonds, and
+reincarnation lives when they play in Server B.
+
+* **One row per user** — the old `UNIQUE(guild_id, user_id)` per-guild isolation
+  is replaced by `UNIQUE(user_id)`. Migration 018 merges any pre-existing
+  duplicates keep-the-strongest (highest realm wins) and reparents every
+  player-owned row (items, techniques, laws, bonds, companions, reincarnation
+  lives, realm runs, market listings, combat history) onto the survivor.
+* **The world stays per-server** — guild config, world events, qi audit logs,
+  anti-cheat flags, combat logs, and the auction house's server context remain
+  per-server; sects and Dao Bonds are global by design.
+* **Per-server leaderboards** — each player tracks `last_active_guild_id`;
+  `/leaderboard` and the Heaven Panel rank the cultivators who last played in
+  *this* server, showing their global progress.
+* **Global Groq quotas** — LLM rate limits are per user, not per (user, guild).
+
 ## Contendance Combat Engine (v1.7.0)
 
 **Contendance** (论道决斗) is the duel engine — every round resolves from flat
@@ -461,6 +481,7 @@ hidden multipliers or percentage stacking).
 * **v1.5.0:** Stored Qi · 存灵气 all-rounder pool *(Completed)*
 * **v1.6.0:** Dao Law ranks + aptitude learning speed *(Completed)*
 * **v1.7.0:** Contendance combat — techniques, duels, PvE battles, Dao Heart, burn-to-continue *(Completed)*
+* **v1.8.0:** Global player profiles *(Completed)* — see the [dedicated section](#global-player-profiles-v180)
 
 ---
 

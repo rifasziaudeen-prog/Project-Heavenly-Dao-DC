@@ -32,18 +32,21 @@ class GroqClient:
     def available(self) -> bool:
         return self.enabled and bool(self.api_key)
 
-    async def can_use(self, user_id: int, guild_id: int) -> bool:
-        """Fail closed: any limit hit (or missing DB) blocks the call."""
+    async def can_use(self, user_id: int) -> bool:
+        """Fail closed: any limit hit (or missing DB) blocks the call.
+
+        Players are global — quotas are per user, not per (user, guild).
+        """
         if self.db is None:
             return False
-        player, hourly, daily = await self._usage_counts(user_id, guild_id)
+        player, hourly, daily = await self._usage_counts(user_id)
         return (
             player < 1
             and hourly < config.GROQ_GLOBAL_HOURLY_LIMIT
             and daily < config.GROQ_GLOBAL_DAILY_LIMIT
         )
 
-    async def _usage_counts(self, user_id: int, guild_id: int) -> tuple[int, int, int]:
+    async def _usage_counts(self, user_id: int) -> tuple[int, int, int]:
         assert self.db is not None
         player = await self.db.fetchone(
             "SELECT COUNT(*) AS c FROM llm_usage WHERE user_id=? AND created_at > ?",
@@ -74,7 +77,7 @@ class GroqClient:
         """Returns LLM text or None on ANY failure (caller falls back to templates)."""
         if not self.available:
             return None
-        if user_id and not await self.can_use(user_id, guild_id):
+        if user_id and not await self.can_use(user_id):
             return None
         payload = {
             "model": self.model,

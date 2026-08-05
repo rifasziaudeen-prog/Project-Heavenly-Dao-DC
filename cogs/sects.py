@@ -25,10 +25,9 @@ class SectsCog(commands.Cog):
         self.bot = bot
 
     # ------------------------------------------------------------- helpers
-    async def _cultivator(self, guild_id: int, user_id: int):
+    async def _cultivator(self, user_id: int):
         return await self.bot.db.fetchone(
-            "SELECT * FROM cultivators WHERE guild_id=? AND user_id=?",
-            (guild_id, user_id),
+            "SELECT * FROM cultivators WHERE user_id=?", (user_id,)
         )
 
     async def _sect_of(self, cultivator_row) -> dict | None:
@@ -78,7 +77,7 @@ class SectsCog(commands.Cog):
     async def sect_create(
         self, interaction: discord.Interaction, name: str
     ) -> None:
-        me = await self._cultivator(interaction.guild_id, interaction.user.id)
+        me = await self._cultivator(interaction.user.id)
         if not me:
             await self._refuse(interaction, "You must `/register` before founding a sect.")
             return
@@ -139,7 +138,7 @@ class SectsCog(commands.Cog):
     async def sect_join(
         self, interaction: discord.Interaction, name: str
     ) -> None:
-        me = await self._cultivator(interaction.guild_id, interaction.user.id)
+        me = await self._cultivator(interaction.user.id)
         if not me:
             await self._refuse(interaction, "You must `/register` before joining a sect.")
             return
@@ -185,7 +184,7 @@ class SectsCog(commands.Cog):
         description="Leave your current sect (a Patriarch leaving disbands it)",
     )
     async def sect_leave(self, interaction: discord.Interaction) -> None:
-        me = await self._cultivator(interaction.guild_id, interaction.user.id)
+        me = await self._cultivator(interaction.user.id)
         if not me or not me["sect_id"]:
             await self._refuse(interaction, "You do not belong to a sect.")
             return
@@ -232,7 +231,7 @@ class SectsCog(commands.Cog):
     async def sect_info(
         self, interaction: discord.Interaction, name: str | None = None
     ) -> None:
-        me = await self._cultivator(interaction.guild_id, interaction.user.id)
+        me = await self._cultivator(interaction.user.id)
         sect = None
         if name:
             sect = await sect_by_name(self.bot.db, name)
@@ -309,7 +308,7 @@ class SectsCog(commands.Cog):
     async def sect_donate(
         self, interaction: discord.Interaction, amount: int
     ) -> None:
-        me = await self._cultivator(interaction.guild_id, interaction.user.id)
+        me = await self._cultivator(interaction.user.id)
         if not me or not me["sect_id"]:
             await self._refuse(interaction, "You must belong to a sect to donate.")
             return
@@ -351,7 +350,7 @@ class SectsCog(commands.Cog):
         description="Upgrade the sect array (Patriarch only) — spends treasury stones",
     )
     async def sect_upgrade_array(self, interaction: discord.Interaction) -> None:
-        me = await self._cultivator(interaction.guild_id, interaction.user.id)
+        me = await self._cultivator(interaction.user.id)
         if not me or not me["sect_id"]:
             await self._refuse(interaction, "You must belong to a sect.")
             return
@@ -420,7 +419,7 @@ class SectsCog(commands.Cog):
         *,
         promote: bool,
     ) -> None:
-        me = await self._cultivator(interaction.guild_id, interaction.user.id)
+        me = await self._cultivator(interaction.user.id)
         if not me or not me["sect_id"]:
             await self._refuse(interaction, "You must belong to a sect.")
             return
@@ -429,7 +428,7 @@ class SectsCog(commands.Cog):
             await self._refuse(interaction, "Only the Patriarch may change ranks.")
             return
 
-        target = await self._cultivator(interaction.guild_id, member.id)
+        target = await self._cultivator(member.id)
         if not target or target["sect_id"] != sect["id"]:
             await self._refuse(interaction, f"{member.mention} is not a member of your sect.")
             return
@@ -476,7 +475,7 @@ class SectsCog(commands.Cog):
     async def sect_expel(
         self, interaction: discord.Interaction, member: discord.Member
     ) -> None:
-        me = await self._cultivator(interaction.guild_id, interaction.user.id)
+        me = await self._cultivator(interaction.user.id)
         if not me or not me["sect_id"]:
             await self._refuse(interaction, "You must belong to a sect.")
             return
@@ -485,7 +484,7 @@ class SectsCog(commands.Cog):
             await self._refuse(interaction, "Only the Patriarch may expel members.")
             return
 
-        target = await self._cultivator(interaction.guild_id, member.id)
+        target = await self._cultivator(member.id)
         if not target or target["sect_id"] != sect["id"]:
             await self._refuse(interaction, f"{member.mention} is not a member of your sect.")
             return

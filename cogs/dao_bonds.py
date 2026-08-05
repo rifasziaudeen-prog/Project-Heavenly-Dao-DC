@@ -29,10 +29,9 @@ class DaoBondsCog(commands.Cog):
         self.bot = bot
 
     # ------------------------------------------------------------- helpers
-    async def _cultivator(self, guild_id: int, user_id: int):
+    async def _cultivator(self, user_id: int):
         return await self.bot.db.fetchone(
-            "SELECT * FROM cultivators WHERE guild_id=? AND user_id=?",
-            (guild_id, user_id),
+            "SELECT * FROM cultivators WHERE user_id=?", (user_id,)
         )
 
     async def _gender_role_map(self, guild_id: int) -> dict:
@@ -103,8 +102,8 @@ class DaoBondsCog(commands.Cog):
                 ephemeral=True,
             )
             return
-        me = await self._cultivator(interaction.guild_id, interaction.user.id)
-        them = await self._cultivator(interaction.guild_id, target.id)
+        me = await self._cultivator(interaction.user.id)
+        them = await self._cultivator(target.id)
         if not me or not them:
             await interaction.response.send_message(
                 "Both cultivators must `/register` before forming a bond.",
@@ -235,8 +234,8 @@ class DaoBondsCog(commands.Cog):
     async def _respond_to_proposal(
         self, interaction: discord.Interaction, initiator: discord.Member, *, accept: bool
     ) -> None:
-        me = await self._cultivator(interaction.guild_id, interaction.user.id)
-        them = await self._cultivator(interaction.guild_id, initiator.id)
+        me = await self._cultivator(interaction.user.id)
+        them = await self._cultivator(initiator.id)
         if not me or not them:
             await interaction.response.send_message(
                 "Both cultivators must `/register` first.", ephemeral=True
@@ -300,8 +299,8 @@ class DaoBondsCog(commands.Cog):
         partner: discord.Member,
         reason: str = "The Dao has grown distant.",
     ) -> None:
-        me = await self._cultivator(interaction.guild_id, interaction.user.id)
-        them = await self._cultivator(interaction.guild_id, partner.id)
+        me = await self._cultivator(interaction.user.id)
+        them = await self._cultivator(partner.id)
         if not me or not them:
             await interaction.response.send_message(
                 "Both cultivators must `/register` first.", ephemeral=True
@@ -362,7 +361,7 @@ class DaoBondsCog(commands.Cog):
     # ============================================================ /dao_bonds
     @app_commands.command(name="dao_bonds", description="List your Dao Bonds")
     async def dao_bonds(self, interaction: discord.Interaction) -> None:
-        me = await self._cultivator(interaction.guild_id, interaction.user.id)
+        me = await self._cultivator(interaction.user.id)
         if not me:
             await interaction.response.send_message(
                 "You have not `/register`ed yet.", ephemeral=True
@@ -408,8 +407,8 @@ class DaoBondsCog(commands.Cog):
     async def dual_cultivate(
         self, interaction: discord.Interaction, partner: discord.Member
     ) -> None:
-        me = await self._cultivator(interaction.guild_id, interaction.user.id)
-        them = await self._cultivator(interaction.guild_id, partner.id)
+        me = await self._cultivator(interaction.user.id)
+        them = await self._cultivator(partner.id)
         if not me or not them:
             await interaction.response.send_message(
                 "Both cultivators must `/register` first.", ephemeral=True

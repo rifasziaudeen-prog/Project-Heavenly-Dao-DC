@@ -26,7 +26,7 @@ def test_buffered_qi_pipeline_end_to_end():
             await seed_templates_if_empty(bot.db, config.TEMPLATES_DIR)
             await bot.templates.load()
 
-            row, is_new = await get_or_create_cultivator(bot.db, 1, 555, "Riel")
+            row, is_new = await get_or_create_cultivator(bot.db, 555, "Riel", 1)
             assert is_new is True
 
             gain = gm.calculate_qi_gain(row["realm_tier"], row["comprehension"], source="message")
@@ -72,8 +72,8 @@ def test_expiry_sweep_refunds_escrow_and_returns_item():
             await bot.templates.load()
 
             # Seller + bidder + an item put up for sale.
-            seller, _ = await get_or_create_cultivator(bot.db, 1, 100, "Seller")
-            bidder, _ = await get_or_create_cultivator(bot.db, 1, 200, "Bidder")
+            seller, _ = await get_or_create_cultivator(bot.db, 100, "Seller", 1)
+            bidder, _ = await get_or_create_cultivator(bot.db, 200, "Bidder", 1)
             await bot.db.execute(
                 "INSERT INTO items (owner_id, name, item_type, grade) VALUES (?,?,?,?)",
                 (seller["id"], "Spirit Sword", "Weapon", "Earth"),

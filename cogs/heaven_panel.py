@@ -86,7 +86,7 @@ class HeavenPanelCog(commands.Cog):
         return await self.bot.db.fetchall(
             "SELECT id, username, realm_tier, realm_sub_stage, qi_current,"
             " stat_points, karma_points, heart_demon_ratio"
-            " FROM cultivators WHERE guild_id=?"
+            " FROM cultivators WHERE last_active_guild_id=?"
             " ORDER BY realm_tier DESC, realm_sub_stage DESC, qi_current DESC LIMIT ?",
             (guild_id, limit),
         )
@@ -111,7 +111,7 @@ class HeavenPanelCog(commands.Cog):
         cult = await db.fetchone(
             "SELECT COUNT(*) AS c, AVG(realm_tier) AS avg_tier,"
             " SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS today"
-            " FROM cultivators WHERE guild_id=?",
+            " FROM cultivators WHERE last_active_guild_id=?",
             (ui.now_utc().replace(hour=0, minute=0, second=0, microsecond=0).strftime("%Y-%m-%d %H:%M:%S"), guild_id),
         )
         hour_bucket = ui.now_utc().strftime("%Y-%m-%d %H:00:00")

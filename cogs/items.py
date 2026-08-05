@@ -15,10 +15,9 @@ class ItemsCog(commands.Cog):
         self.bot = bot
 
     # ------------------------------------------------------------------ helpers
-    async def _cultivator(self, guild_id: int, user_id: int):
+    async def _cultivator(self, user_id: int):
         row = await self.bot.db.fetchone(
-            "SELECT * FROM cultivators WHERE guild_id=? AND user_id=?",
-            (guild_id, user_id),
+            "SELECT * FROM cultivators WHERE user_id=?", (user_id,)
         )
         return dict(row) if row else None
 
@@ -32,7 +31,7 @@ class ItemsCog(commands.Cog):
         interaction: discord.Interaction,
         page: int = 1,
     ) -> None:
-        row = await self._cultivator(interaction.guild_id, interaction.user.id)
+        row = await self._cultivator(interaction.user.id)
         if not row:
             embed = discord.Embed(
                 title="Unawakened · 未觉醒",
@@ -103,7 +102,7 @@ class ItemsCog(commands.Cog):
         interaction: discord.Interaction,
         item_name: str,
     ) -> None:
-        row = await self._cultivator(interaction.guild_id, interaction.user.id)
+        row = await self._cultivator(interaction.user.id)
         if not row:
             await interaction.response.send_message("Please `/register` first.", ephemeral=True)
             return
@@ -172,7 +171,7 @@ class ItemsCog(commands.Cog):
         interaction: discord.Interaction,
         item_name: str,
     ) -> None:
-        row = await self._cultivator(interaction.guild_id, interaction.user.id)
+        row = await self._cultivator(interaction.user.id)
         if not row:
             await interaction.response.send_message("Please `/register` first.", ephemeral=True)
             return
@@ -272,13 +271,13 @@ class ItemsCog(commands.Cog):
             await interaction.response.send_message("Quantity must be at least 1.", ephemeral=True)
             return
 
-        sender_row = await self._cultivator(interaction.guild_id, interaction.user.id)
+        sender_row = await self._cultivator(interaction.user.id)
         if not sender_row:
             await interaction.response.send_message("Please `/register` first.", ephemeral=True)
             return
 
         target_row, _ = await get_or_create_cultivator(
-            self.bot.db, interaction.guild_id, recipient.id, recipient.display_name
+            self.bot.db, recipient.id, recipient.display_name, interaction.guild_id
         )
 
         cfg = await self.bot._guild_config(interaction.guild_id)
@@ -353,7 +352,7 @@ class ItemsCog(commands.Cog):
             (item_name.strip(),),
         )
         if not template:
-            row = await self._cultivator(interaction.guild_id, interaction.user.id)
+            row = await self._cultivator(interaction.user.id)
             if row:
                 template = await self.bot.db.fetchone(
                     "SELECT * FROM items WHERE owner_id=? AND LOWER(name)=LOWER(?)",

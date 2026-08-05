@@ -8,28 +8,45 @@ from db.database import Database
 
 
 async def get_or_create_cultivator(
-    db: Database, guild_id: int, user_id: int, username: str
+    db: Database, user_id: int, username: str, guild_id: int = 0
 ) -> tuple[dict, bool]:
-    """Returns (row_dict, was_created). Per-guild isolation enforced by the unique index.
+    """Returns (row_dict, was_created). Players are GLOBAL — one row per Discord
+    user across every server (migration 018 dropped the per-guild unique index).
+
+    `guild_id` only seeds the home/active guild on creation and refreshes
+    `last_active_guild_id` (once) when the player is next seen in another
+    server, which powers per-server leaderboards. The username is kept fresh.
 
     A concurrent first interaction (e.g. a message and /register racing) can hit
     the unique index with two INSERTs — the loser is recovered by re-fetching.
     """
     row = await db.fetchone(
-        "SELECT * FROM cultivators WHERE guild_id=? AND user_id=?", (guild_id, user_id)
+        "SELECT * FROM cultivators WHERE user_id=?", (user_id,)
     )
     if row:
-        return dict(row), False
+        data = dict(row)
+        if guild_id and data["last_active_guild_id"] != guild_id:
+            await db.execute(
+                "UPDATE cultivators SET last_active_guild_id=?, username=? WHERE id=?",
+                (guild_id, username, data["id"]),
+            )
+            data["last_active_guild_id"] = guild_id
+            data["username"] = username
+        elif username != data["username"]:
+            await db.execute(
+                "UPDATE cultivators SET username=? WHERE id=?", (username, data["id"]),
+            )
+            data["username"] = username
+        return data, False
     try:
         cursor = await db.execute(
-            "INSERT INTO cultivators (user_id, guild_id, username, qi_capacity)"
-            " VALUES (?,?,?,?)",
-            (user_id, guild_id, username, gm.qi_capacity_for(1)),
+            "INSERT INTO cultivators (user_id, guild_id, username, qi_capacity,"
+            " last_active_guild_id) VALUES (?,?,?,?,?)",
+            (user_id, guild_id, username, gm.qi_capacity_for(1), guild_id),
         )
     except sqlite3.IntegrityError:
         row = await db.fetchone(
-            "SELECT * FROM cultivators WHERE guild_id=? AND user_id=?",
-            (guild_id, user_id),
+            "SELECT * FROM cultivators WHERE user_id=?", (user_id,),
         )
         return dict(row), False
     row = await db.fetchone(

@@ -15,10 +15,9 @@ class AuctionCog(commands.Cog):
     def __init__(self, bot) -> None:
         self.bot = bot
 
-    async def _cultivator(self, guild_id: int, user_id: int):
+    async def _cultivator(self, user_id: int):
         row = await self.bot.db.fetchone(
-            "SELECT * FROM cultivators WHERE guild_id=? AND user_id=?",
-            (guild_id, user_id),
+            "SELECT * FROM cultivators WHERE user_id=?", (user_id,)
         )
         return dict(row) if row else None
 
@@ -71,7 +70,7 @@ class AuctionCog(commands.Cog):
         description="View your active market listings and top bids",
     )
     async def my_listings(self, interaction: discord.Interaction) -> None:
-        row = await self._cultivator(interaction.guild_id, interaction.user.id)
+        row = await self._cultivator(interaction.user.id)
         if not row:
             await interaction.response.send_message("Please `/register` first.", ephemeral=True)
             return
@@ -126,7 +125,7 @@ class AuctionCog(commands.Cog):
         duration_hours: int = 24,
         buyout_price: int = None,
     ) -> None:
-        row = await self._cultivator(interaction.guild_id, interaction.user.id)
+        row = await self._cultivator(interaction.user.id)
         if not row:
             await interaction.response.send_message("Please `/register` first.", ephemeral=True)
             return
@@ -199,7 +198,7 @@ class AuctionCog(commands.Cog):
         description="Instant buy an item from the market at listed price/buyout",
     )
     async def buy(self, interaction: discord.Interaction, listing_id: int) -> None:
-        row = await self._cultivator(interaction.guild_id, interaction.user.id)
+        row = await self._cultivator(interaction.user.id)
         if not row:
             await interaction.response.send_message("Please `/register` first.", ephemeral=True)
             return
@@ -265,7 +264,7 @@ class AuctionCog(commands.Cog):
         description="Place a bid on an active auction listing (min +10% over current bid)",
     )
     async def bid(self, interaction: discord.Interaction, listing_id: int, amount: int) -> None:
-        row = await self._cultivator(interaction.guild_id, interaction.user.id)
+        row = await self._cultivator(interaction.user.id)
         if not row:
             await interaction.response.send_message("Please `/register` first.", ephemeral=True)
             return
@@ -324,7 +323,7 @@ class AuctionCog(commands.Cog):
         description="Cancel one of your active listings — refunds fee & returns item",
     )
     async def cancel_listing(self, interaction: discord.Interaction, listing_id: int) -> None:
-        row = await self._cultivator(interaction.guild_id, interaction.user.id)
+        row = await self._cultivator(interaction.user.id)
         if not row:
             await interaction.response.send_message("Please `/register` first.", ephemeral=True)
             return
@@ -394,12 +393,12 @@ class AuctionCog(commands.Cog):
         item_name: str,
         quantity: int = 1,
     ) -> None:
-        sender = await self._cultivator(interaction.guild_id, interaction.user.id)
+        sender = await self._cultivator(interaction.user.id)
         if not sender:
             await interaction.response.send_message("Please `/register` first.", ephemeral=True)
             return
 
-        recipient = await self._cultivator(interaction.guild_id, target_user.id)
+        recipient = await self._cultivator(target_user.id)
         if not recipient:
             await interaction.response.send_message(f"{target_user.display_name} has not registered yet.", ephemeral=True)
             return
@@ -438,7 +437,7 @@ class AuctionCog(commands.Cog):
         description="Accept your pending trade offer",
     )
     async def trade_accept(self, interaction: discord.Interaction) -> None:
-        row = await self._cultivator(interaction.guild_id, interaction.user.id)
+        row = await self._cultivator(interaction.user.id)
         if not row:
             await interaction.response.send_message("Please `/register` first.", ephemeral=True)
             return
@@ -469,7 +468,7 @@ class AuctionCog(commands.Cog):
         description="Decline your pending trade offer",
     )
     async def trade_decline(self, interaction: discord.Interaction) -> None:
-        row = await self._cultivator(interaction.guild_id, interaction.user.id)
+        row = await self._cultivator(interaction.user.id)
         if not row:
             await interaction.response.send_message("Please `/register` first.", ephemeral=True)
             return

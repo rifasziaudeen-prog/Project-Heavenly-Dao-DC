@@ -18,4 +18,4 @@ def test_enabled_without_key_returns_none():
 
 def test_can_use_fails_closed_without_db():
     client = GroqClient(api_key="k", enabled=True, db=None)
-    assert asyncio.run(client.can_use(1, 1)) is False
+    assert asyncio.run(client.can_use(1)) is False

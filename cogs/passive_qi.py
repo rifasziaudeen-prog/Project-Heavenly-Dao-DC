@@ -59,8 +59,8 @@ class PassiveQiCog(commands.Cog):
             return
 
         row, _ = await get_or_create_cultivator(
-            self.bot.db, message.guild.id, message.author.id,
-            message.author.display_name,
+            self.bot.db, message.author.id, message.author.display_name,
+            message.guild.id,
         )
         now = time.time()
         allowed, count, window_start = passive_logic.consume_message_quota(

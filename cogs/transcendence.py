@@ -123,8 +123,8 @@ class TranscendenceCog(commands.Cog):
     )
     async def transcend(self, interaction: discord.Interaction) -> None:
         row, _ = await get_or_create_cultivator(
-            self.bot.db, interaction.guild_id, interaction.user.id,
-            interaction.user.display_name,
+            self.bot.db, interaction.user.id, interaction.user.display_name,
+            interaction.guild_id,
         )
         if row["realm_tier"] < gm.TRANSCENDENCE_REALM or row["realm_sub_stage"] < gm.TRANSCENDENCE_LAYER:
             embed = discord.Embed(
