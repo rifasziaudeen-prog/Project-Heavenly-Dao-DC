@@ -20,7 +20,7 @@ def test_migrations_apply_and_are_idempotent():
             db = Database(Path(d) / "mig.db")
             await db.connect()
             applied = await run_migrations(db)
-            assert applied == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16]
+            assert applied == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17]
 
             rows = await db.fetchall(
                 "SELECT name FROM sqlite_master WHERE type='table'"
@@ -103,6 +103,20 @@ def test_migrations_apply_and_are_idempotent():
             )
             assert '"20"' in space["mastery_effect"] and '"25"' not in space["mastery_effect"]
 
+            # Migration 017 additions: techniques catalog + combat tables
+            tech_count = await db.fetchone("SELECT COUNT(*) AS c FROM techniques")
+            assert tech_count["c"] == 12
+            for tbl in ("cultivator_techniques", "combat_log"):
+                t = await db.fetchone(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                    (tbl,),
+                )
+                assert t is not None, f"missing table {tbl}"
+            sand = await db.fetchone(
+                "SELECT COUNT(*) AS c FROM item_templates WHERE name='Comprehension Sand'"
+            )
+            assert sand["c"] == 1
+
             # Idempotent: second run applies nothing
             assert await run_migrations(db) == []
             await db.close()
@@ -123,7 +137,7 @@ def test_migration_rerun_tolerates_duplicate_columns():
             await db.execute("DELETE FROM schema_migrations WHERE version IN (2,3,4,5,6,7,8,9,10)")
             await run_migrations(db)  # must not raise "duplicate column name"
             rows = await db.fetchall("SELECT version FROM schema_migrations")
-            assert {r["version"] for r in rows} == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16}
+            assert {r["version"] for r in rows} == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17}
             await db.close()
 
     asyncio.run(main())

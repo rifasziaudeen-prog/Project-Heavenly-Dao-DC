@@ -306,3 +306,43 @@ CREATE TABLE IF NOT EXISTS audit_log (
 ) PARTITION BY RANGE (created_at);
 
 CREATE TABLE audit_log_default PARTITION OF audit_log DEFAULT;
+
+-- ---------------------------------------------------------------------------
+-- Combat (Contendance): techniques, registers, and battle log
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS techniques (
+    id             SERIAL PRIMARY KEY,
+    name           TEXT   NOT NULL UNIQUE,
+    name_zh        TEXT   NOT NULL,
+    quality        TEXT   NOT NULL DEFAULT 'White' CHECK (quality IN ('White','Green','Blue','Purple','Orange','Red')),
+    law_affinity   TEXT,
+    base_damage    INTEGER NOT NULL DEFAULT 8,
+    stored_qi_cost INTEGER NOT NULL DEFAULT 10,
+    description    TEXT   NOT NULL DEFAULT '',
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS cultivator_techniques (
+    cultivator_id   INTEGER NOT NULL REFERENCES cultivators(id) ON DELETE CASCADE,
+    technique_id    INTEGER NOT NULL REFERENCES techniques(id) ON DELETE CASCADE,
+    mastery_progress REAL  NOT NULL DEFAULT 0.0 CHECK (mastery_progress BETWEEN 0.0 AND 100.0),
+    entries         JSONB   NOT NULL DEFAULT '[]'::jsonb,
+    times_used      INTEGER NOT NULL DEFAULT 0,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (cultivator_id, technique_id)
+);
+CREATE INDEX IF NOT EXISTS idx_cult_tech_pg ON cultivator_techniques(cultivator_id, mastery_progress DESC);
+
+CREATE TABLE IF NOT EXISTS combat_log (
+    id             SERIAL PRIMARY KEY,
+    guild_id       BIGINT NOT NULL,
+    winner_id      INTEGER REFERENCES cultivators(id) ON DELETE SET NULL,
+    loser_id       INTEGER REFERENCES cultivators(id) ON DELETE SET NULL,
+    mode           TEXT   NOT NULL CHECK (mode IN ('duel', 'battle')),
+    rounds         INTEGER NOT NULL DEFAULT 1,
+    reason         TEXT   NOT NULL DEFAULT 'defeat',
+    wager_type     TEXT   NOT NULL DEFAULT 'none',
+    wager_amount   INTEGER NOT NULL DEFAULT 0,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_combat_log_pg ON combat_log(guild_id, created_at);

@@ -62,6 +62,11 @@ enabled (required for passive Qi) — see `.env.example` for the full walkthroug
 | `/laws` | View fundamental Dao Laws, your 5-rank mastery, resistance, and next-rank progress |
 | `/comprehend <law_name>` | Meditate on a law to gain insight (deterministic, scales with 悟性) (Tier 5+) |
 | `/law_status <law_name>` | View detailed lore, the rank ladder, and per-rank effects for a law |
+| `/contend @user` | Challenge a cultivator to a Contendance duel (wager spirit stones or fight for honor) |
+| `/battle` | Challenge a realm spirit beast to a scripted PvE battle |
+| `/learn <technique_name>` | Learn a technique by consuming a Technique Scroll |
+| `/techniques` | View your learned techniques, ranks, and rolled entries |
+| `/reroll <technique_name>` | Reroll a technique's entries (1 Comprehension Sand + 100 💎) |
 | `/market` | Browse active market listings in the Heavenly Auction House |
 | `/sell <item_name> <price>` | List an item on the market (5% listing fee, max 5 listings) |
 | `/buy <listing_id>` | Instant buy an item at buyout/listed price |
@@ -323,13 +328,14 @@ cogs/           Slash-command modules (alchemy, auction, cultivation, dao_bonds,
 core/           Deterministic math, template engine, Groq client, anti-cheat, server layout blueprint,
                 alchemy, auction, dao_bonds, dao_laws, items, reincarnation, secret_realms, sects, world_events
 db/             Async SQLite & PostgreSQL layers (database.py, postgres.py), migration runner, queries
-migrations/     Versioned SQL migrations (001_init to 012_spiritual_aptitudes; postgres/011 + 012)
+migrations/     Versioned SQL migrations (001_init to 017_combat; postgres/011 + 012)
 scripts/        Automation scripts (setup_discord_server.py, migrate_sqlite_to_postgres.py,
                 validate_migration.py, github_backup.py)
 templates/      Narrative fragment JSON — add files to extend flavor
 config/         Env-driven settings (default.py, postgres.py)
-tests/          pytest suite (200 tests covering balance, bonds, sects, items, alchemy, reincarnation,
-                secret realms, world events, dao laws, auction, affinities, postgres, migrations, github backup, server layout)
+tests/          pytest suite (218 tests covering balance, bonds, sects, items, alchemy, reincarnation,
+                secret realms, world events, dao laws, auction, affinities, combat, postgres, migrations,
+                github backup, server layout)
 ```
 
 ## Backups & disaster recovery
@@ -407,8 +413,44 @@ To rebuild on a fresh server: invite the bot, run `/setup_server` once, done.
   Discord Developer Portal (Bot > Privileged Gateway Intents) and restart.
 * **`DISCORD_TOKEN is not set`** — you haven't created `.env` from
   `.env.example` yet.
+* **Techniques not appearing after learning** — the bot syncs the catalog at
+  startup; `/learn` only works after a restart that applied migration 017.
 * **Database keeps growing** — expected: `qi_buffer` is an append-only audit
   log. It gets monthly partitioning in the PostgreSQL migration.
+
+## Contendance Combat Engine (v1.7.0)
+
+**Contendance** (论道决斗) is the duel engine — every round resolves from flat
+stats, technique power, and law mastery plus one **d20 roll per fighter** (no
+hidden multipliers or percentage stacking).
+
+* **Techniques** — a 12-entry catalog (White → Red quality) with Dao-Law
+  affinities. Learn them via `/learn` (consumes a Technique Scroll); every new
+  cultivator receives a free starting technique at `/register`. Techniques roll
+  **1–3 deterministic entries** — Afterimage (+15 negation), Penetration
+  (ignores 1 law-resistance rank), Overcharge (double damage / double Stored Qi
+  cost), Karmic Weight (+5 per 1,000 enemy karma) — rerollable with
+  **Comprehension Sand** via `/reroll`.
+* **Duels (`/contend`)** — challenge a cultivator; the target accepts or
+  declines (wagers optional). Each round both fighters privately commit an
+  intent (⚔️ Technique · ☯️ Unfold Law · 🗡️ Artifact · 💊 Pill · 🏳️ Retreat)
+  on a **20-second blind window** — you never see your opponent's pick. The
+  Clash resolves: technique power + d20 vs. parry, **5% → 25% law resistance**,
+  **2-ranks-ahead deterministic counter**, and a narrative Revelation after
+  every round. Duels cap at **30 rounds** — a stall (pill vs pill) ends by
+  remaining HP.
+* **Dao Heart** — a 100-point mental pool drained by heart-demon intents; at 0
+  you are forced to retreat and suffer a Heart Demon spike.
+* **Burn Cultivation Base** — sacrifice **dantian Qi** (your cultivation
+  base, flat per-realm cost) to instantly recover **+100 Stored Qi** and keep
+  fighting: 3rd burn +10% Heart Demon, 5th forced deviation/retreat, 7th an
+  erasure check on Tier 8+ (all within the current fight).
+* **Spirit Beasts (`/battle`)** — scripted PvE: beasts telegraph their intent
+  for 1–3 phases so you can counter them, exactly like the Ancient Sword Spirit
+  gathering Sword Intent.
+* First to **0 HP** is defeated (never killed), or the duel ends by retreat /
+  Dao Heart break / burn deviation. Combat is logged to `combat_log` for
+  future leaderboards.
 
 ## Roadmap
 
@@ -416,7 +458,9 @@ To rebuild on a fresh server: invite the bot, run `/setup_server` once, done.
 * **Phase 2 (social):** sects, player-to-player Dao Bonds, spirit stone economy *(Completed)*
 * **Phase 3 (advanced):** inventory & items *(Completed)*, alchemy mini-game *(Completed)*, reincarnation *(Completed)*, secret realms *(Completed)*, Groq Tier-4 wiring *(Completed)*
 * **Phase 4 (world):** world-event mechanics *(Completed)*, Dao Laws endgame *(Completed)*, auction house / P2P trading *(Completed)*, PostgreSQL migration *(Completed)*
-* **v1.1.0:** Spiritual Aptitudes & Martial Intent Engine (Five Phases, Martial Intents, Yin-Yang) *(Completed)* — see the [dedicated section](#spiritual-aptitudes--martial-intent-engine-v110)
+* **v1.5.0:** Stored Qi · 存灵气 all-rounder pool *(Completed)*
+* **v1.6.0:** Dao Law ranks + aptitude learning speed *(Completed)*
+* **v1.7.0:** Contendance combat — techniques, duels, PvE battles, Dao Heart, burn-to-continue *(Completed)*
 
 ---
 

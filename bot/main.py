@@ -66,6 +66,7 @@ class HeavenlyDaoBot(commands.Bot):
         from cogs.alchemy import AlchemyCog
         from cogs.auction import AuctionCog
         from cogs.cultivation import CultivationCog
+        from cogs.combat import CombatCog
         from cogs.dao_bonds import DaoBondsCog
         from cogs.dao_config import DaoConfigCog
         from cogs.dao_laws import DaoLawsCog
@@ -80,6 +81,7 @@ class HeavenlyDaoBot(commands.Bot):
         from cogs.world_events import WorldEventsCog
 
         await self.add_cog(CultivationCog(self))
+        await self.add_cog(CombatCog(self))
         await self.add_cog(AffinitiesCog(self))
         await self.add_cog(PassiveQiCog(self))
         await self.add_cog(HeavenPanelCog(self))

@@ -110,7 +110,16 @@ def roll_breakthrough_drops(realm_tier: int) -> list[dict]:
             "effect_data": json.dumps(pill_eff),
         })
 
-    # 3. Scroll drop (8%)
+    # 3. Comprehension Sand (5%) — reroll material for technique entries
+    if random.random() < 0.05:
+        drops.append({
+            "name": "Comprehension Sand",
+            "item_type": "Material",
+            "grade": "Heaven",
+            "effect_data": "{}",
+        })
+
+    # 4. Scroll drop (8%)
     if random.random() < 0.08:
         scrolls_by_grade = {
             "Mortal": ("Basic Qi Breathing Manual", {"type": "breakthrough_aid", "bonus_percent": 5}),

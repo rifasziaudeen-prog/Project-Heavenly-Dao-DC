@@ -5,6 +5,48 @@ All notable changes to the **Heavenly Dao Engine** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] — 2026-08-05 — Contendance Combat Engine ⚔️
+
+### Added
+
+- **Technique system** (`core/combat.py`, migration 017) — a 12-entry catalog
+  (`techniques` table) spanning White → Red quality with Dao-Law affinities,
+  flat `base_damage` and `stored_qi_cost` (no percentages). Each cultivator
+  gains a **free starting technique** at `/register`; Technique Scrolls are now
+  consumable via `/learn <technique_name>`.
+- **Deterministic entries** — every technique rolls **1–3 flat modifiers**
+  (Afterimage +15 negation, Penetration ignores 1 law-resistance rank,
+  Overcharge 2× damage / 2× cost, Karmic Weight +5 per 1,000 enemy karma).
+  Rerollable with **Comprehension Sand** + 100 💎 via `/reroll` (seeded in
+  migration 017, added to breakthrough drops).
+- **PvP duels (`/contend`)** — challenge a cultivator with an accept/decline
+  prompt and optional spirit-stone wagers; each round both fighters privately
+  commit an intent (Technique / Unfold Law / Artifact / Pill / Retreat) on a
+  20-second blind window. The Clash resolves deterministically: technique power
+  + d20 vs parry, **5% → 25% law resistance**, **2-ranks-ahead counter**, and a
+  narrative Revelation per round. First to 0 HP is defeated (never killed);
+  retreat ends the duel.
+- **Dao Heart** — a 100-point mental pool drained by heart-demon intents; at 0
+  → forced retreat + Heart Demon spike.
+- **Burn Cultivation Base** — sacrifice **dantian Qi** (your cultivation base,
+  flat per-realm cost) to instantly recover **+100 Stored Qi** and keep
+  fighting: 3rd burn +10% Heart Demon, 5th forced deviation/retreat, 7th
+  erasure check on Tier 8+ (all within the current fight; escalation is
+  per-duel).
+- **Scripted PvE (`/battle`)** — realm spirit beasts telegraph their intent
+  for 1–3 phases so players can prepare a counter.
+- **Combat log** — `combat_log` table records duels & battles (mode, rounds,
+  reason, wager) for future leaderboards.
+- **Fixed**: migration 017 had an unescaped apostrophe in a technique
+  description that broke the whole migration (`near "s": syntax error`);
+  escaped as `''` so all 17 migrations apply cleanly.
+- **Fixed**: a declined or unanswered duel used to keep both wagers and wedge
+  the challenger out of future fights — now wagers are refunded and the
+  challenge cleaned up on decline or 60s timeout.
+- **Stall guard**: duels cap at **30 rounds**; a fight that never lands a
+  killing blow (e.g. pill vs pill) is decided by remaining HP, or declared a
+  draw with wagers returned.
+
 ## [1.6.0] — 2026-08-05 — Dao Law Ranks + Aptitude Learning Speed 📜
 
 ### Added

@@ -229,6 +229,24 @@ class CultivationCog(commands.Cog):
             (*db_fields.values(), interaction.guild_id, interaction.user.id),
         )
 
+        # ── Grant the free starting technique ─────────────────────────────
+        import json as _json
+        starter = await self.bot.db.fetchone(
+            "SELECT * FROM techniques WHERE LOWER(name)=LOWER('Qi Burst')"
+        )
+        if starter:
+            already = await self.bot.db.fetchone(
+                "SELECT 1 FROM cultivator_techniques WHERE cultivator_id=? AND technique_id=?",
+                (row["id"], starter["id"]),
+            )
+            if not already:
+                from core import combat as core_cbt
+                await self.bot.db.execute(
+                    "INSERT INTO cultivator_techniques (cultivator_id, technique_id, entries)"
+                    " VALUES (?,?,?)",
+                    (row["id"], starter["id"], _json.dumps(core_cbt.roll_entries())),
+                )
+
         text = await self.bot.templates.get("register", name=interaction.user.display_name)
         embed = discord.Embed(title="☯ Dao Awakening · 觉醒", description=text, color=ui.GOLD)
         embed.add_field(
