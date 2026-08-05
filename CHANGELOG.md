@@ -5,6 +5,49 @@ All notable changes to the **Heavenly Dao Engine** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.0] — 2026-08-06 — Newbie Foundations · 入门根基 🌱
+
+### Added
+
+- **Front-loaded Qi curve** — `BASE_QI` rewritten so filling your dantian is a
+  **~10-cultivation goal at every realm** (was ~100 at Mortal: 10 Qi per use
+  against a 1,000-Qi dantian meant ~50 hours of wall-clock to a first
+  breakthrough). The exponential ladder is untouched; only the early-game
+  floor moved.
+- **`/daily` — the spirit-stone tribute.** Flat per-realm payouts (`DAILY_STONES`,
+  50 💎 at Mortal → 18,000 at Beyond Dao) on a forgiving **20-hour cooldown**,
+  with **flat streak milestones** at 7/14/30/60/100 days (100 → 5,000 💎). No
+  percentages anywhere. Migration **022** adds `last_daily_at` + `daily_streak`
+  (scaffolded by `scripts/new_feature.py`; applied to the live DB; Postgres
+  parity).
+- **Starter kit on `/register`** — **100 💎** + a **Wooden Sword** + **3× Qi
+  Gathering Pills**, seeded from the item catalog (`STARTER_KIT` in
+  `core/items.py`). Mirrors the flat starter grants of the benchmark bots.
+- **The register trap fixed** — chat auto-creates the account before
+  `/register` (passive Qi listener), and the old flow then refused with
+  "Already Awakened" forever — no aptitudes, no Stored Qi pool, no kit. The
+  cog now detects the unawakened row (no rolled `stored_qi_max`) and runs the
+  full awakening.
+
+### Changed
+
+- **Passive chat Qi**: 10% → **15%** of a `/cultivate`; hourly message cap
+  15 → **25**.
+- **Realm-scaled `/cultivate` cooldown** — ~16 min at Mortal, +1 min per
+  realm, capped at 30 min (`cultivate_cooldown_seconds()` in `core/math.py`;
+  the flat 30-min config constant is gone).
+- **Breakthrough reward** +10 → **+25 💎** spirit stones.
+
+### Fixed
+
+- New players who chatted before `/register` could never awaken (see above).
+
+### Tests
+
+- Cooldown scaling, daily tables, claim-state machine (first claim / cooldown /
+  streak continue / streak break / milestone bonus / bad timestamp), starter
+  kit contents, migration 022 columns — suite now **264 tests**.
+
 ## [1.13.0] — 2026-08-05 — Artifact Active Abilities ⚡
 
 ### Added

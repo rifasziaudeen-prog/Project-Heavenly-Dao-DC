@@ -36,7 +36,7 @@ SECT_CREATE_MIN_TIER = 3        # Foundation Establishment to found a sect
 SECT_MAX_NAME_LENGTH = 40
 SECT_MAX_ARRAY_LEVEL = 7         # level 7 = +56% capped to ARRAY_BONUS_CAP (+50%)
 ARRAY_UPGRADE_BASE_COST = 500    # cost = int(500 * 1.5^(level-1))
-SPIRIT_STONES_PER_BREAKTHROUGH = 10  # earned on successful breakthrough
+SPIRIT_STONES_PER_BREAKTHROUGH = 25  # earned on successful breakthrough (v1.14.0: newbie economy)
 
 # Array burst (Part 5 · Commit 2) — flat, hardcoded, easy to re-tune.
 # The Patriarch spends treasury stones to pulse Stored Qi to every member;

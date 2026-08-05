@@ -54,8 +54,8 @@ GROQ_GLOBAL_HOURLY_LIMIT: int = 10                # safety rail on free-tier quo
 GROQ_GLOBAL_DAILY_LIMIT: int = 100
 
 # --- Gameplay tuning (Phase 1) ----------------------------------------------
-CULTIVATE_COOLDOWN_SECONDS: int = 1800            # /cultivate every 30 min
-MESSAGE_QI_HOURLY_CAP: int = 15                   # counted messages / player / hour
+# /cultivate cooldown is realm-scaled in core/math.py (cultivate_cooldown_seconds)
+MESSAGE_QI_HOURLY_CAP: int = 25                   # counted messages / player / hour
 MESSAGE_MIN_LENGTH: int = 5                       # ignore <5 char messages
 MESSAGE_REPEAT_WINDOW_SECONDS: int = 60           # ignore identical repeat within 60s
 QI_BUFFER_FLUSH_SECONDS: int = 60                 # memory buffer -> DB flush cadence

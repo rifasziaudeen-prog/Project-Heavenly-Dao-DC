@@ -44,6 +44,8 @@ CREATE TABLE IF NOT EXISTS cultivators (
     stored_qi_max_bonus               INTEGER NOT NULL DEFAULT 0,
     stored_qi_regen_bonus             INTEGER NOT NULL DEFAULT 0,
     last_breakthrough_at              TIMESTAMPTZ,
+    last_daily_at                     TIMESTAMPTZ,          -- /daily claim (022)
+    daily_streak                      INTEGER NOT NULL DEFAULT 0,  -- consecutive days
     created_at                        TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_cultivators_user UNIQUE (user_id)   -- GLOBAL players (018)
 );

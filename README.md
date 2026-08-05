@@ -30,8 +30,9 @@ enabled (required for passive Qi) — see `.env.example` for the full walkthroug
 | Command | Description |
 |---|---|
 | `/help [category]` | Browse commands by category (Core, Aptitudes, Items, Alchemy, Realms, Events, Laws, Market, Sects & Bonds) |
-| `/register` | Awaken your cultivation profile |
-| `/cultivate` | Absorb 灵力 (Qi) — 30 min cooldown |
+| `/register` | Awaken your cultivation profile and claim your starter kit (100 💎, Wooden Sword, 3× Qi Gathering Pill) |
+| `/cultivate` | Absorb 灵力 (Qi) into your dantian — cooldown shortens as you ascend (~16 min at Mortal, 30 max) |
+| `/daily` | Claim a flat spirit-stone tribute every 20 hours (streak milestones at 7/14/30/60/100 days) |
 | `/breakthrough` | Attempt a tribulation when your dantian is full (awards spirit stones & item drops on success) |
 | `/transcend` | At the summit (Beyond Dao, 9th layer): shed your vessel and restart with permanent gifts |
 | `/allocate <stat> [amount]` | Spend stat points earned from breakthroughs |
@@ -95,9 +96,34 @@ enabled (required for passive Qi) — see `.env.example` for the full walkthroug
 | `/sect_demote @user` | **Patriarch.** Demote a member one rank step |
 | `/sect_expel @user` | **Patriarch.** Expel a lower-ranked member from the sect |
 
-Passive Qi: every countable chat message awards ~10% of a `/cultivate`. Cap of
-**15 messages/hour/player**; messages under 5 chars, duplicates within 60s, and
+Passive Qi: every countable chat message awards ~15% of a `/cultivate`. Cap of
+**25 messages/hour/player**; messages under 5 chars, duplicates within 60s, and
 messages in disabled (spam) channels don't count.
+
+## Newbie Foundations · 入门根基 (v1.14.0)
+
+The two ground layers that make the game actually *playable* from day one:
+
+* **Qi that moves** — `BASE_QI` was front-loaded so filling your dantian is a
+  **~10-cultivation goal at every realm** (was ~100 at Mortal: 10 Qi per use
+  against a 1,000-Qi dantian — ~50 hours to a first breakthrough). Passive
+  chat Qi rose to 15% of a `/cultivate` with a 25-message/hour cap, and the
+  `/cultivate` cooldown now scales with realm (~16 min at Mortal → 30 min
+  cap), so the early game stays snappy. A new cultivator can reach their
+  first breakthrough in a single evening session.
+* **An economy that seeds** — `/register` now grants a starter kit
+  (**100 💎** + a Wooden Sword + 3× Qi Gathering Pills), `/daily` pays a flat
+  per-realm spirit-stone tribute every 20 hours with **flat streak
+  milestones** (no percentages anywhere), and each successful breakthrough
+  now pays **+25 💎** (was +10).
+* **The register trap fixed** — a new player who chats *before* running
+  `/register` (passive Qi auto-creates the account) used to be told
+  "Already Awakened" forever, with no aptitudes, no Stored Qi pool, and no
+  starter kit. `/register` now detects the unawakened row and runs the full
+  awakening.
+* All numbers live as named constants in `core/math.py` / `core/items.py`
+  (`BASE_QI`, `DAILY_STONES`, `DAILY_STREAK_MILESTONES`, `STARTER_KIT`, …) —
+  see `BALANCE.md`.
 
 ## Game design (per the v2.0 blueprint + Kimi review)
 
@@ -247,8 +273,9 @@ treasuries, and defensive array upgrades.
   **500 💎 → +30 Stored Qi** per member; each array level past 1 adds +250 💎
   cost and +10 Stored Qi pulse. Cooldown **6 hours** (tracked by `last_burst_at`,
   visible on `/sect_info`). No percentages — one plain table in `core/sects.py`.
-* **Spirit stone wallet**: players earn **+10 spirit stones** per successful
-  breakthrough. Stones can be donated to the sect treasury via `/sect_donate`.
+* **Spirit stone wallet**: players earn **+25 spirit stones** per successful
+  breakthrough (v1.14.0), plus the `/daily` tribute and `/register` starter
+  kit. Stones can be donated to the sect treasury via `/sect_donate`.
 
 ## Artifact Active Abilities · 法宝 (v1.13.0)
 
@@ -359,7 +386,7 @@ scripts/        Automation scripts (setup_discord_server.py, migrate_sqlite_to_p
                 validate_migration.py, github_backup.py)
 templates/      Narrative fragment JSON — add files to extend flavor
 config/         Env-driven settings (default.py, postgres.py)
-tests/          pytest suite (256 tests covering balance, bonds, sects, items, alchemy, reincarnation,
+tests/          pytest suite (264 tests covering balance, bonds, sects, items, alchemy, reincarnation,
                 secret realms, world events, dao laws, auction, affinities, combat, global players,
                 postgres, migrations, github backup, server layout)
 ```
@@ -555,6 +582,7 @@ hidden multipliers or percentage stacking).
 * **v1.11.0:** World-boss Contendance — scripted boss intents, law counters, Stored Qi stakes, battlefield HP *(Completed)* — see the [world events section](#world-events--heavenly-calamities-phase-4-step-1--world-boss-contendance-v1110)
 * **v1.12.0:** Developer experience upgrade — `BALANCE.md` tuning sheet, `new_feature.py` scaffolder, `check_docs.py` drift-linter *(Completed)*
 * **v1.13.0:** Artifact active abilities — spirit-energy weapon strikes with time/stone recharge *(Completed)* — see the [dedicated section](#artifact-active-abilities--法宝-v1130)
+* **v1.14.0:** Newbie Foundations — front-loaded Qi curve, `/daily` tribute, `/register` starter kit, register trap fixed *(Completed)* — see the [dedicated section](#newbie-foundations--入门根基-v1140)
 
 ---
 

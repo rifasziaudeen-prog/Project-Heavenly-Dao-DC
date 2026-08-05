@@ -61,7 +61,7 @@ class CultivationCog(commands.Cog):
                 description=(
                     "Welcome to the **Heavenly Dao Engine**! Select a category parameter in `/help category:<type>` to view detailed commands.\n\n"
                     "**Command Categories:**\n"
-                    "• **`/help category:☯️ Core Cultivation`** — `/register`, `/cultivate`, `/breakthrough`, `/profile`, `/allocate`, `/leaderboard`\n"
+                    "• **`/help category:☯️ Core Cultivation`** — `/register`, `/cultivate`, `/daily`, `/breakthrough`, `/profile`, `/allocate`, `/leaderboard`\n"
                     "• **`/help category:🌀 Spiritual Aptitudes`** — `/aptitudes`\n"
                     "• **`/help category:📦 Inventory & Items`** — `/inventory`, `/equip`, `/use`, `/give`, `/item_info`\n"
                     "• **`/help category:🧪 Alchemy Crafting`** — `/recipes`, `/refine_pill`, `/alchemy_status`\n"
@@ -89,8 +89,9 @@ class CultivationCog(commands.Cog):
             embed = discord.Embed(
                 title=ui.format_title("☯️ Core Cultivation Commands", lang),
                 description=(
-                    "• `/register` — Awaken your cultivator persona and enter the Heavenly Dao\n"
-                    "• `/cultivate` — Absorb spiritual Qi into your dantian (1h cooldown)\n"
+                    "• `/register` — Awaken your cultivator persona, claim your starter kit, and enter the Heavenly Dao\n"
+                    "• `/cultivate` — Absorb spiritual Qi into your dantian (cooldown shortens as you ascend)\n"
+                    "• `/daily` — Claim a flat spirit-stone tribute every 20 hours (streak milestones)\n"
                     "• `/breakthrough` — Attempt to ascend to the next realm or layer\n"
                     "• `/transcend` — At the summit (Beyond Dao, 9th layer): shed your vessel for permanent gifts\n"
                     "• `/profile` — View your realm, Qi capacity, stats, titles, and physique\n"
@@ -206,7 +207,10 @@ class CultivationCog(commands.Cog):
             self.bot.db, interaction.user.id, interaction.user.display_name,
             interaction.guild_id,
         )
-        if not is_new:
+        # A chat message auto-creates the row before /register runs (passive Qi
+        # listener). Those rows never rolled a Stored Qi pool — stored_qi_max is
+        # 0 — so treat them as unawakened and run the full awakening here.
+        if not is_new and (row.get("stored_qi_max") or 0) > 0:
             embed = discord.Embed(
                 title="Already Awakened · 已觉醒",
                 description=(
@@ -247,14 +251,36 @@ class CultivationCog(commands.Cog):
                     (row["id"], starter["id"], _json.dumps(core_cbt.roll_entries())),
                 )
 
+        # ── Starter kit: 100 💎 + a weapon + Qi pills (economy seed) ──────
+        # STARTER_KIT carries full item specs, so no catalog lookup is needed.
+        for name, item_type, grade, effect_data, qty in core_items.STARTER_KIT:
+            await self.bot.db.execute(
+                "INSERT INTO items (owner_id, name, item_type, grade, effect_data, quantity)"
+                " VALUES (?,?,?,?,?,?)",
+                (row["id"], name, item_type, grade, effect_data, qty),
+            )
+        await self.bot.db.execute(
+            "UPDATE cultivators SET spirit_stones=spirit_stones+? WHERE id=?",
+            (gm.STARTER_SPIRIT_STONES, row["id"]),
+        )
+
         text = await self.bot.templates.get("register", name=interaction.user.display_name)
         embed = discord.Embed(title="☯ Dao Awakening · 觉醒", description=text, color=ui.GOLD)
         embed.add_field(
             name="Begin the Path",
             value=(
                 "`/cultivate` to absorb 灵力 (spiritual qi) into your dantian.\n"
-                "Chat in the server to gain passive Qi (capped at 15 messages/hour).\n"
-                "When your 丹田 (dantian) is full, attempt `/breakthrough`."
+                "Chat in the server to gain passive Qi (capped at 25 messages/hour).\n"
+                "When your 丹田 (dantian) is full, attempt `/breakthrough`.\n"
+                "`/daily` every 20 hours for a spirit-stone tribute."
+            ),
+            inline=False,
+        )
+        embed.add_field(
+            name="Starter Kit · 入门礼包",
+            value=(
+                f"**{gm.STARTER_SPIRIT_STONES} 💎 spirit stones** · Wooden Sword · "
+                "3× Qi Gathering Pill"
             ),
             inline=False,
         )
@@ -304,12 +330,13 @@ class CultivationCog(commands.Cog):
             self.bot.db, interaction.user.id, interaction.user.display_name,
             interaction.guild_id,
         )
+        cooldown = gm.cultivate_cooldown_seconds(row["realm_tier"])
         if row["last_cultivate_at"]:
             last = ui.parse_db_time(row["last_cultivate_at"])
             if last:
                 elapsed = (ui.now_utc() - last).total_seconds()
-                if elapsed < config.CULTIVATE_COOLDOWN_SECONDS:
-                    remaining = config.CULTIVATE_COOLDOWN_SECONDS - elapsed
+                if elapsed < cooldown:
+                    remaining = cooldown - elapsed
                     embed = discord.Embed(
                         title="Meridians Aflame · 经脉灼热",
                         description=(
@@ -342,7 +369,7 @@ class CultivationCog(commands.Cog):
         embed = discord.Embed(title="🧘 Meditation · 修炼", description=text, color=ui.GOLD)
         embed.add_field(name="Qi Gained · 获得灵力", value=f"+{ui.format_qi(gain)}", inline=True)
         embed.add_field(
-            name="Cooldown", value=ui.format_duration(config.CULTIVATE_COOLDOWN_SECONDS),
+            name="Cooldown", value=ui.format_duration(cooldown),
             inline=True,
         )
         embed.add_field(
@@ -350,6 +377,113 @@ class CultivationCog(commands.Cog):
             value=(f"{ui.progress_bar(new_qi, row['qi_capacity'])} "
                    f"{ui.format_qi(new_qi)} / {ui.format_qi(row['qi_capacity'])}"),
             inline=False,
+        )
+        await interaction.response.send_message(embed=embed)
+
+    # ================================================================= /daily
+    @app_commands.command(
+        name="daily",
+        description="Claim your daily spirit-stone tribute (20h cooldown)",
+    )
+    async def daily(self, interaction: discord.Interaction) -> None:
+        row, _ = await get_or_create_cultivator(
+            self.bot.db, interaction.user.id, interaction.user.display_name,
+            interaction.guild_id,
+        )
+        state = gm.daily_claim_state(
+            row.get("last_daily_at"), row.get("daily_streak") or 0, ui.now_utc()
+        )
+        if not state["eligible"]:
+            embed = discord.Embed(
+                title="Tribute Not Yet Due · 供奉未至",
+                description=(
+                    "The mountain shrine is silent. The tribute renews in "
+                    f"**{ui.format_duration(int(state['cooldown_left']))}**."
+                ),
+                color=ui.CYAN,
+            )
+            embed.add_field(
+                name="Current Streak", value=f"{state['new_streak']} days", inline=True,
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+
+        stones = gm.daily_stones_for(row["realm_tier"])
+        milestone_bonus = state["milestone_bonus"]
+        total = stones + milestone_bonus
+        # Atomic anti-race guard: the WHERE pins the value we just read, so a
+        # near-simultaneous second claim (both fetched the same last_daily_at
+        # before either UPDATE landed) matches 0 rows and never double-pays.
+        prev = row.get("last_daily_at")
+        cursor = await self.bot.db.execute(
+            "UPDATE cultivators SET spirit_stones=spirit_stones+?, last_daily_at=?,"
+            " daily_streak=? WHERE id=? AND (last_daily_at IS ? OR last_daily_at = ?)",
+            (total, ui.now_str(), state["new_streak"], row["id"], prev, prev),
+        )
+        if cursor.rowcount == 0:
+            fresh = await self.bot.db.fetchone(
+                "SELECT last_daily_at, daily_streak FROM cultivators WHERE id=?",
+                (row["id"],),
+            )
+            fresh_state = gm.daily_claim_state(
+                fresh["last_daily_at"] if fresh else None,
+                fresh["daily_streak"] if fresh else 0,
+                ui.now_utc(),
+            )
+            embed = discord.Embed(
+                title="Tribute Not Yet Due · 供奉未至",
+                description=(
+                    "The mountain shrine is silent. The tribute renews in "
+                    f"**{ui.format_duration(int(fresh_state['cooldown_left']))}**."
+                ),
+                color=ui.CYAN,
+            )
+            embed.add_field(
+                name="Current Streak", value=f"{fresh_state['new_streak']} days", inline=True,
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+
+        embed = discord.Embed(
+            title="⛰ Daily Tribute · 每日供奉",
+            description=(
+                f"The mountain shrine bestows its blessing upon you, "
+                f"**{interaction.user.display_name}**."
+            ),
+            color=ui.GOLD,
+        )
+        embed.add_field(
+            name="Spirit Stones · 灵石",
+            value=f"+{total:,} 💎", inline=True,
+        )
+        embed.add_field(
+            name="Streak · 连修", value=f"{state['new_streak']} days", inline=True,
+        )
+        if state["streak_broken"]:
+            embed.add_field(
+                name="Streak Reset · 道途中断",
+                value="You missed over two days — the streak fell. Start anew.",
+                inline=False,
+            )
+        elif milestone_bonus:
+            embed.add_field(
+                name="Milestone · 里程碑",
+                value=f"🎉 **{state['new_streak']}-day streak bonus: +{milestone_bonus:,} 💎**",
+                inline=False,
+            )
+        else:
+            nxt = next(
+                (m for m in sorted(gm.DAILY_STREAK_MILESTONES) if m > state["new_streak"]),
+                None,
+            )
+            if nxt:
+                embed.add_field(
+                    name="Next Milestone",
+                    value=f"{nxt}-day streak: +{gm.DAILY_STREAK_MILESTONES[nxt]:,} 💎",
+                    inline=False,
+                )
+        embed.set_footer(
+            text=f"Realm tribute: {gm.daily_stones_for(row['realm_tier']):,} 💎 · renews every 20 hours"
         )
         await interaction.response.send_message(embed=embed)
 

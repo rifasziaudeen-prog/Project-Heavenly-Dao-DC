@@ -19,11 +19,18 @@ constant name** (most editors: `Ctrl+F`).
 | Layer names (9 layers per realm) | `LAYERS` | First Layer → Ninth Layer |
 | Realm count | `MAX_TIER` | `16` |
 | Layers per realm | `MAX_LAYER` | `9` |
-| Qi gained per `/cultivate` per realm | `BASE_QI` | per-realm table |
+| Qi gained per `/cultivate` per realm | `BASE_QI` | per-realm table (front-loaded: ~10 cultivations/layer) |
 | Qi capacity (how much you can hold) | `QI_CAPACITY` | per-realm table |
-| Qi multipliers per activity | `SOURCE_MULT` | chat / secret realm / etc. |
+| Qi multipliers per activity | `SOURCE_MULT` | chat = 0.15 / cultivate = 1.0 / array = 0.30 / dual = 2.5 |
+| `/cultivate` cooldown per realm | `cultivate_cooldown_seconds()` | `CULTIVATE_COOLDOWN_BASE=900` +60/tier, cap `1800` |
 | Companion boost cap | `COMPANION_BONUS_CAP` | `2.0` (max 2×) |
 | Sect array boost cap | `ARRAY_BONUS_CAP` | `0.50` (max +50%) |
+| `/daily` tribute per realm | `DAILY_STONES` | per-realm table (50 → 18,000) |
+| `/daily` streak milestones | `DAILY_STREAK_MILESTONES` | `{7:100, 14:250, 30:750, 60:2000, 100:5000}` |
+| `/daily` cooldown | `DAILY_COOLDOWN_SECONDS` | `20 × 3600` (20 h) |
+| Starter spirit stones on `/register` | `STARTER_SPIRIT_STONES` | `100` |
+| Starter items on `/register` | `STARTER_KIT` (`core/items.py`) | Wooden Sword + 3× Qi Gathering Pill |
+| Breakthrough spirit-stone reward | `SPIRIT_STONES_PER_BREAKTHROUGH` | `25` |
 
 ## 2. Breakthrough — `core/math.py`
 
@@ -217,8 +224,7 @@ Blade, Annihilation Rend (power 30, cost 60) on the Sword of Annihilation
 
 | What it does | Constant | Current |
 |---|---|---|
-| `/cultivate` cooldown | `CULTIVATE_COOLDOWN_SECONDS` | `1800` (30 min) |
-| Countable messages per hour | `MESSAGE_QI_HOURLY_CAP` | `15` |
+| Countable messages per hour | `MESSAGE_QI_HOURLY_CAP` | `25` |
 | Minimum message length | `MESSAGE_MIN_LENGTH` | `5` |
 | Repeat-message window | `MESSAGE_REPEAT_WINDOW_SECONDS` | `60` |
 | Groq free-tier rails | `GROQ_*` | model, 5s timeout, 10/hr, 100/day |
@@ -235,7 +241,10 @@ Blade, Annihilation Rend (power 30, cost 60) on the Sword of Annihilation
 - **How long the sect array cooldown is** → `core/sects.py` → `ARRAY_BURST_COOLDOWN`
 - **Duel loss Heart Demon** → `core/combat.py`/`cogs/combat.py` — `0.05` (+1 Point) at the duel-loss write
 - **Artifact active power / recharge** → `core/items.py` → `artifact_active_power()`, `ARTIFACT_RECHARGE_PER_HOUR`
-- **Passive chat Qi rates** → `config/default.py` + `core/passive_logic.py`
+- **Passive chat Qi rates** → `config/default.py` (`MESSAGE_QI_HOURLY_CAP`) + `core/math.py` (`SOURCE_MULT`)
+- **How fast a newbie fills their dantian** → `core/math.py` → `BASE_QI`
+- **The `/daily` payout** → `core/math.py` → `DAILY_STONES` + `DAILY_STREAK_MILESTONES`
+- **The `/register` starter kit** → `core/items.py` → `STARTER_KIT` + `core/math.py` → `STARTER_SPIRIT_STONES`
 
 After editing: **restart the bot** (`Ctrl+C`, then `python run.py`) and run the
 test suite once (`python -m pytest -q`) to make sure nothing broke.

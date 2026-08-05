@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import math
 import random
+from datetime import datetime, timedelta, timezone
 
 # ---------------------------------------------------------------------------
 # Realm taxonomy (bilingual) — 16 realms
@@ -64,13 +65,19 @@ MAX_TIER = 16
 MAX_LAYER = 9
 
 # ---------------------------------------------------------------------------
-# Qi economy (review: exponential base, controlled by diminishing returns)
+# Qi economy (v1.14.0: front-loaded so every realm ≈ 10 cultivations/layer)
+#
+# Old curve started at 8 qi/tier-1-cultivate against a 1,000-qi dantian
+# (~100 cultivations, ~50 hours — newbies never reached their first
+# breakthrough). The new table is capacity/10 divided by the comprehension
+# bonus at base stats (~1.30), so filling your dantian is a ~10-cultivation
+# goal at every realm, not just the early ones.
 # ---------------------------------------------------------------------------
 BASE_QI: dict[int, int] = {
-    1: 8, 2: 35, 3: 140, 4: 560, 5: 2_200,
-    6: 9_000, 7: 36_000, 8: 150_000, 9: 600_000,
-    10: 2_400_000, 11: 9_600_000, 12: 38_400_000, 13: 153_600_000,
-    14: 614_400_000, 15: 2_457_600_000, 16: 9_830_400_000,
+    1: 75, 2: 190, 3: 460, 4: 1_150, 5: 3_000,
+    6: 7_500, 7: 22_000, 8: 75_000, 9: 375_000,
+    10: 1_500_000, 11: 6_000_000, 12: 22_000_000, 13: 90_000_000,
+    14: 375_000_000, 15: 1_500_000_000, 16: 6_000_000_000,
 }
 QI_CAPACITY: dict[int, int] = {
     1: 1_000, 2: 2_500, 3: 6_000, 4: 15_000, 5: 40_000,
@@ -78,13 +85,41 @@ QI_CAPACITY: dict[int, int] = {
     10: 20_000_000, 11: 80_000_000, 12: 300_000_000, 13: 1_200_000_000,
     14: 5_000_000_000, 15: 20_000_000_000, 16: 80_000_000_000,
 }
-# Passive chat Qi = 10% of a /cultivate (user requirement)
+# Passive chat Qi = 15% of a /cultivate — chatting is the lifeblood of a
+# Discord game, so talking is a real cultivation path (user requirement: no
+# percentages in the UI, but the internal multiplier stays a plain ratio).
 SOURCE_MULT: dict[str, float] = {
-    "message": 0.10,
+    "message": 0.15,
     "cultivate": 1.0,
     "sect_array": 0.30,
     "dual_cultivation": 2.5,
 }
+
+# Realm-scaled /cultivate cooldown: Mortal meditates every ~16 minutes,
+# elder realms once per 30 — the early game stays snappy, the endgame gates.
+CULTIVATE_COOLDOWN_BASE = 900            # 15 min + ramp
+CULTIVATE_COOLDOWN_PER_TIER = 60         # +1 min per realm
+CULTIVATE_COOLDOWN_CAP = 1_800           # never longer than 30 min
+
+# ---------------------------------------------------------------------------
+# Daily claim economy (v1.14.0 — newbie spirit-stone income)
+# ---------------------------------------------------------------------------
+DAILY_COOLDOWN_SECONDS = 20 * 3600       # 20 hours: the claim drifts, never
+                                         # gets pinned to a single hour
+DAILY_STONES: dict[int, int] = {
+    1: 50, 2: 75, 3: 100, 4: 150, 5: 225, 6: 350, 7: 500,
+    8: 750, 9: 1_100, 10: 1_600, 11: 2_400, 12: 3_600,
+    13: 5_400, 14: 8_000, 15: 12_000, 16: 18_000,
+}
+# Flat milestone bonuses for streak milestones (no percentages anywhere).
+DAILY_STREAK_MILESTONES: dict[int, int] = {
+    7: 100, 14: 250, 30: 750, 60: 2_000, 100: 5_000,
+}
+
+# Starter kit granted by /register (economy seed — mirrors the flat starter
+# grants of the reference bots the user benchmarked against).
+STARTER_SPIRIT_STONES = 100
+
 
 COMPANION_BONUS_CAP = 2.0     # hard cap: companions can never exceed 2x
 ARRAY_BONUS_CAP = 0.50        # max +50% from sect array
@@ -145,6 +180,77 @@ def realm_label(tier: int, sub_stage: int, lang: str = "bilingual") -> str:
 
 def qi_capacity_for(tier: int) -> int:
     return QI_CAPACITY.get(tier, QI_CAPACITY[MAX_TIER])
+
+
+def cultivate_cooldown_seconds(tier: int) -> int:
+    """/cultivate cooldown, realm-scaled: ~16 min at Mortal, capped at 30."""
+    return min(
+        CULTIVATE_COOLDOWN_BASE + max(0, int(tier) - 1) * CULTIVATE_COOLDOWN_PER_TIER,
+        CULTIVATE_COOLDOWN_CAP,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Daily claim (flat spirit-stone income, no percentages)
+# ---------------------------------------------------------------------------
+def daily_stones_for(tier: int) -> int:
+    """Flat spirit stones for a /daily claim at this realm."""
+    return DAILY_STONES.get(tier, DAILY_STONES[1])
+
+
+def daily_streak_bonus(streak: int) -> int:
+    """Flat milestone bonus for the current streak (0 if no milestone hit)."""
+    best = 0
+    for milestone, bonus in DAILY_STREAK_MILESTONES.items():
+        if int(streak) >= milestone:
+            best = max(best, bonus)
+    return best
+
+
+def daily_claim_state(last_daily_at: str | None, streak: int, now) -> dict:
+    """Pure decision for a /daily claim.
+
+    Args:
+        last_daily_at: ISO timestamp of the last claim (DB value), or None.
+        streak: current consecutive-day streak (0 when none).
+        now: a timezone-aware datetime (UTC).
+
+    Returns:
+        eligible       bool  — a claim may proceed
+        cooldown_left  float — seconds until the next claim (0 when eligible)
+        new_streak     int   — streak after a successful claim
+        streak_broken  bool  — the previous streak was reset by a missed day
+        milestone_bonus int  — flat bonus for the newly reached milestone
+    """
+    if not last_daily_at:
+        return {
+            "eligible": True, "cooldown_left": 0.0, "new_streak": 1,
+            "streak_broken": False, "milestone_bonus": 0,
+        }
+    try:
+        last = datetime.fromisoformat(str(last_daily_at).replace("Z", "+00:00"))
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        return {
+            "eligible": True, "cooldown_left": 0.0, "new_streak": 1,
+            "streak_broken": False, "milestone_bonus": 0,
+        }
+    elapsed = (now - last).total_seconds()
+    if elapsed < DAILY_COOLDOWN_SECONDS:
+        return {
+            "eligible": False, "cooldown_left": DAILY_COOLDOWN_SECONDS - elapsed,
+            "new_streak": streak, "streak_broken": False, "milestone_bonus": 0,
+        }
+    # A full 20h elapsed: the streak continues only if the gap is under 2 days
+    # (48h); anything longer resets it — the player fell off the mountain.
+    streak_broken = elapsed >= 2 * DAILY_COOLDOWN_SECONDS
+    new_streak = (int(streak) + 1) if not streak_broken else 1
+    return {
+        "eligible": True, "cooldown_left": 0.0, "new_streak": new_streak,
+        "streak_broken": streak_broken,
+        "milestone_bonus": daily_streak_bonus(new_streak),
+    }
 
 # ---------------------------------------------------------------------------
 # Qi gain — diminishing returns everywhere

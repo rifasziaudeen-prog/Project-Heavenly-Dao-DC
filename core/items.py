@@ -12,6 +12,19 @@ from core import math as gm
 from core.affinities import check_prerequisites as _check_apt_prereqs
 
 # ---------------------------------------------------------------------------
+# Starter kit — granted once by /register (newbie economy seed, v1.14.0)
+# ---------------------------------------------------------------------------
+# Fully self-contained specs (name, item_type, grade, effect_data, quantity)
+# so the grant has zero dependency on the seed catalog — a fresh server with
+# an empty item_templates still grants the full kit.
+STARTER_KIT: tuple[tuple[str, str, str, str, int], ...] = (
+    ("Wooden Sword", "Weapon", "Mortal",
+     '{"type": "stat_buff", "stat": "physique", "amount": 5}', 1),
+    ("Qi Gathering Pill", "Pill", "Mortal",
+     '{"type": "qi_boost", "amount": 250}', 3),
+)
+
+# ---------------------------------------------------------------------------
 # Artifact actives — spirit-energy weapon abilities (Part 5 depth, v1.13.0)
 # ---------------------------------------------------------------------------
 # An equipped weapon with an "active_ability" in its effect_data gains a

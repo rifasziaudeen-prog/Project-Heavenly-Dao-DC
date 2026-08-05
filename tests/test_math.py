@@ -37,10 +37,10 @@ def test_dao_mercy_capped_at_25pct():
     assert maxed - base <= 0.25 + 1e-9
 
 
-def test_qi_message_is_10pct_of_cultivate():
+def test_qi_message_is_15pct_of_cultivate():
     msg = gm.calculate_qi_gain(1, 10, source="message")
     cult = gm.calculate_qi_gain(1, 10, source="cultivate")
-    assert msg == int(cult * 0.10)
+    assert msg == int(cult * 0.15)
 
 
 def test_qi_diminishing_returns_on_comprehension():
@@ -56,7 +56,7 @@ def test_qi_companion_bonus_capped_at_2x():
         1, 10, source="cultivate", active_companions=companions
     )
     comp_bonus = 1.0 + math.log10(1.0 + 10 / 10.0)
-    assert gain <= int(8 * comp_bonus * 2.0) + 1
+    assert gain <= int(gm.BASE_QI[1] * comp_bonus * 2.0) + 1
 
 
 def test_next_realm_step():
@@ -262,3 +262,86 @@ def test_heart_demon_delta_label():
     assert gm.heart_demon_delta_label(0.05) == "+1 Heart Demon Point"
     assert gm.heart_demon_delta_label(0.01) == "+0.2 Heart Demon Points"
     assert gm.heart_demon_delta_label(-0.2) == "-4 Heart Demon Points"
+
+
+# ---------------------------------------------------------------------------
+# v1.14.0 — newbie foundations: cooldown scaling + daily claim economy
+# ---------------------------------------------------------------------------
+def test_cultivate_cooldown_scales_with_realm():
+    assert gm.cultivate_cooldown_seconds(1) == gm.CULTIVATE_COOLDOWN_BASE
+    assert gm.cultivate_cooldown_seconds(1) < gm.cultivate_cooldown_seconds(3)
+    assert gm.cultivate_cooldown_seconds(16) == gm.CULTIVATE_COOLDOWN_CAP
+    # Monotone non-decreasing across every realm
+    for t in range(1, gm.MAX_TIER):
+        assert gm.cultivate_cooldown_seconds(t) <= gm.cultivate_cooldown_seconds(t + 1)
+
+
+def test_daily_stones_scale_with_realm():
+    assert gm.daily_stones_for(1) == 50
+    assert gm.daily_stones_for(2) > gm.daily_stones_for(1)
+    assert gm.daily_stones_for(999) == gm.daily_stones_for(1)  # safe fallback
+
+
+def test_daily_streak_bonus_milestones():
+    assert gm.daily_streak_bonus(0) == 0
+    assert gm.daily_streak_bonus(6) == 0
+    assert gm.daily_streak_bonus(7) == 100
+    assert gm.daily_streak_bonus(30) == 750
+    assert gm.daily_streak_bonus(200) == 5000  # highest milestone wins
+
+
+def test_daily_claim_state_first_claim():
+    now = gm.datetime(2026, 8, 6, 12, 0, tzinfo=gm.timezone.utc)
+    state = gm.daily_claim_state(None, 0, now)
+    assert state["eligible"] is True
+    assert state["new_streak"] == 1
+    assert state["milestone_bonus"] == 0
+
+
+def test_daily_claim_state_cooldown_and_streak():
+    now = gm.datetime(2026, 8, 6, 12, 0, tzinfo=gm.timezone.utc)
+    claimed = now.isoformat()
+    # Same hour → not eligible
+    state = gm.daily_claim_state(claimed, 3, now)
+    assert state["eligible"] is False
+    assert state["cooldown_left"] > 0
+    assert state["new_streak"] == 3  # unchanged
+    # 21h later → eligible, streak continues
+    later = now + gm.timedelta(hours=21)
+    state = gm.daily_claim_state(claimed, 3, later)
+    assert state["eligible"] is True
+    assert state["new_streak"] == 4
+    # 3 days later → streak broken
+    much_later = now + gm.timedelta(hours=72)
+    state = gm.daily_claim_state(claimed, 3, much_later)
+    assert state["eligible"] is True
+    assert state["streak_broken"] is True
+    assert state["new_streak"] == 1
+
+
+def test_daily_claim_state_milestone_bonus():
+    now = gm.datetime(2026, 8, 6, 12, 0, tzinfo=gm.timezone.utc)
+    claimed = (now - gm.timedelta(hours=21)).isoformat()
+    state = gm.daily_claim_state(claimed, 6, now)
+    assert state["new_streak"] == 7
+    assert state["milestone_bonus"] == 100
+
+
+def test_daily_claim_state_bad_timestamp_treated_as_first():
+    now = gm.datetime(2026, 8, 6, 12, 0, tzinfo=gm.timezone.utc)
+    state = gm.daily_claim_state("not-a-date", 5, now)
+    assert state["eligible"] is True
+    assert state["new_streak"] == 1
+
+
+def test_starter_kit_and_breakthrough_stones():
+    from core import items as core_items
+    from core import sects
+    # (name, item_type, grade, effect_data, quantity) — self-contained specs
+    names = [kit[0] for kit in core_items.STARTER_KIT]
+    assert "Wooden Sword" in names and "Qi Gathering Pill" in names
+    assert sum(kit[4] for kit in core_items.STARTER_KIT) == 4
+    sword = next(k for k in core_items.STARTER_KIT if k[0] == "Wooden Sword")
+    assert sword[1] == "Weapon" and sword[2] == "Mortal"
+    assert gm.STARTER_SPIRIT_STONES == 100
+    assert sects.SPIRIT_STONES_PER_BREAKTHROUGH == 25
