@@ -110,19 +110,13 @@ class HeavenlyDaoBot(commands.Bot):
         self._started = True
         log.info("Heavenly Dao has awakened in %d guild(s)", len(self.guilds))
 
-        # Instant command sync: copy global commands to every joined guild tree
-        if config.DEV_GUILD_ID:
-            guild_obj = discord.Object(id=config.DEV_GUILD_ID)
-            self.tree.copy_global_to(guild=guild_obj)
-            await self.tree.sync(guild=guild_obj)
-            log.info("Synced slash commands instantly to dev guild ID %d", config.DEV_GUILD_ID)
-
+        # Clear legacy guild-level command overrides to prevent duplicate slash commands
         for guild in self.guilds:
             try:
-                self.tree.copy_global_to(guild=guild)
+                self.tree.clear_commands(guild=guild)
                 await self.tree.sync(guild=guild)
             except Exception as e:
-                log.warning("Failed to sync commands to guild %s (%d): %s", guild.name, guild.id, e)
+                log.warning("Could not clear guild commands for %s (%d): %s", guild.name, guild.id, e)
 
         try:
             await self.tree.sync()
