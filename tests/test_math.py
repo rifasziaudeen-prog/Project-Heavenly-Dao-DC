@@ -236,3 +236,23 @@ def test_language_formatting():
     assert ui.format_title("☯ Dao Awakening · 觉醒", "bilingual") == "☯ Dao Awakening · 觉醒"
     assert ui.format_title("☯ Dao Awakening · 觉醒", "english") == "☯ Dao Awakening"
 
+
+
+def test_heart_demon_points_scale():
+    # The visible 0–20 scale maps linearly over the internal 0–1.0 ratio.
+    assert gm.HD_POINTS_MAX == 20
+    assert gm.heart_demon_points(0.0) == 0
+    assert gm.heart_demon_points(0.05) == 1   # one duel loss = one point
+    assert gm.heart_demon_points(0.2) == 4
+    assert gm.heart_demon_points(1.0) == 20
+    # Clamps stay inside the scale.
+    assert gm.heart_demon_points(-0.5) == 0
+    assert gm.heart_demon_points(1.5) == 20
+
+
+def test_heart_demon_delta_str():
+    assert gm.heart_demon_delta_str(0.05) == "+1"
+    assert gm.heart_demon_delta_str(0.01) == "+0.2"
+    assert gm.heart_demon_delta_str(0.02) == "+0.4"
+    assert gm.heart_demon_delta_str(-0.2) == "-4"
+    assert gm.heart_demon_delta_str(0.0) == "+0"

@@ -5,7 +5,29 @@ All notable changes to the **Heavenly Dao Engine** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.8.1] — 2026-08-05 — Graceful Shutdown Fix 🛑
+## [1.9.0] — 2026-08-05 — Heart Demon Points (Part 5 · Commit 1) 😈
+
+### Added
+
+- **Visible Heart Demon Point scale (0–20)** — the internal `heart_demon_ratio`
+  (0–1.0) is now surfaced to players as a readable number: `/profile` shows
+  `Heart Demon · 心魔: X/20` instead of a percentage. Every player-facing Heart
+  Demon message now speaks in points (`+1`, `+0.4`), never percentages.
+  - `core/math.py` gains `heart_demon_points()` (ratio → 0–20, clamped) and
+    `heart_demon_delta_str()` (ratio delta → signed point string), with
+    `HD_POINTS_MAX = 20`.
+  - Converted displays: `/profile`, duel-loss embed (+1 Point on defeat),
+    beast-battle flee, alchemy explosion/failure, Heart Demon purge pills,
+    Dao Punish / Dao Bless (Heaven Panel), Dao Bond severance and dual-
+    cultivation reduction, item effect descriptions (`-3 Heart Demon Points`).
+- **Unit tests** for both helpers + updated item-effect text assertions
+  (suite now **222 tests**).
+
+### Changed
+
+- A duel loss is still a flat **+1 Heart Demon Point** (internally +0.05 ratio
+  — unchanged engine math, new visible scale).
+
 
 ### Fixed
 

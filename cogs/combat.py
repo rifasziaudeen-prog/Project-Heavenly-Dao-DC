@@ -712,7 +712,8 @@ class CombatCog(commands.Cog):
         winner_uid = duel.p2_uid if defeated_uid == duel.p1_uid else duel.p1_uid
         winner, loser = duel.cultivator(winner_uid), duel.cultivator(defeated_uid)
 
-        # Apply titles + heart demon (allowed % exception for HD)
+        # Apply titles + heart demon: a duel loss is a flat +1 Heart Demon Point
+        # (internally +0.05 on the 0–1.0 ratio; the player sees the 0–20 scale).
         loser_titles = ui.add_json_title(loser["titles"], "Defeated 败者")
         await self.bot.db.execute(
             "UPDATE cultivators SET titles=?, heart_demon_ratio=MIN(1.0, heart_demon_ratio+0.05), title=? WHERE id=?",
@@ -738,7 +739,8 @@ class CombatCog(commands.Cog):
         embed = discord.Embed(
             title=f"🏆 {winner['username']} wins the duel!",
             description=(f"{loser['username']} is defeated ({reason.replace('_', ' ')}).\n"
-                         f"Lasted **{duel.round} rounds**."
+                         f"Lasted **{duel.round} rounds**.\n"
+                         f"{loser['username']} gains **+1 Heart Demon Point** 😈"
                          + (f"\nWager of **{duel.wager * 2:,} 💎** paid to the victor." if duel.wager else "")),
             color=ui.GOLD,
         )
@@ -861,7 +863,8 @@ class CombatCog(commands.Cog):
                     "UPDATE cultivators SET heart_demon_ratio=MIN(1.0, heart_demon_ratio+0.02) WHERE id=?",
                     (player["id"],),
                 )
-                desc = f"**{beast['name']}** overwhelms you. You flee with your life (Heart Demon +2%)."
+                desc = (f"**{beast['name']}** overwhelms you. You flee with your life "
+                        f"(Heart Demon **+{gm.heart_demon_delta_str(0.02)} Points**).")
         await self.bot.db.execute(
             "INSERT INTO combat_log (guild_id, winner_id, loser_id, mode, rounds, reason)"
             " VALUES (?,?,?,?,?,?)",

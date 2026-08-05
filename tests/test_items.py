@@ -27,7 +27,8 @@ def test_format_effect_description():
     assert "+15% Breakthrough Chance" in core_items.format_effect_description(eff_aid, "english")
 
     eff_hd = {"type": "heart_demon_purge", "amount": 0.15}
-    assert "-15% Heart Demon" in core_items.format_effect_description(eff_hd, "english")
+    assert "-3 Heart Demon Points" in core_items.format_effect_description(eff_hd, "english")
+    assert "-3 心魔点" in core_items.format_effect_description(eff_hd, "chinese")
 
 
 def test_equip_toggle_constraints():

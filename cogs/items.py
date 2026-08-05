@@ -7,6 +7,7 @@ from discord.ext import commands
 
 from bot import utils as ui
 from core import items as core_items
+from core import math as gm
 from db.queries import get_or_create_cultivator
 
 
@@ -220,7 +221,7 @@ class ItemsCog(commands.Cog):
                 "UPDATE cultivators SET heart_demon_ratio = MAX(0.0, heart_demon_ratio - ?) WHERE id=?",
                 (amount, row["id"]),
             )
-            result_msg += f" Purged **{amount:.0%}** Heart Demon penalty."
+            result_msg += f" Purged **{gm.heart_demon_points(amount)} Heart Demon Points**."
 
         elif etype == "protection":
             ctype = eff.get("charm_type", "karmic_shield")

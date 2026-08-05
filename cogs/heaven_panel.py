@@ -199,7 +199,7 @@ class HeavenPanelCog(commands.Cog):
             "strip_50": "Strip 50% Qi · 削去半数灵力",
             "reset_qi": "Reset Qi to zero · 灵力归零",
             "demote": "Demote one sub-stage · 境界跌落",
-            "heart_demon": "Raise Heart Demon +0.2 · 心魔滋生",
+            "heart_demon": "Raise Heart Demon +4 Points · 心魔滋生",
             "karma_strike": "Karma strike −200 · 业力打击",
         }
         view = discord.ui.View(timeout=180)
@@ -222,7 +222,7 @@ class HeavenPanelCog(commands.Cog):
             "reset_qi": "Qi reduced to zero",
             "demote": "Realm demoted one sub-stage",
             "heart_demon": "Heart Demon raised to "
-                           f"{min(1.0, row['heart_demon_ratio'] + 0.2):.0%}",
+                           f"{gm.heart_demon_points(min(1.0, row['heart_demon_ratio'] + 0.2))}/{gm.HD_POINTS_MAX}",
             "karma_strike": "Karma reduced by 200",
         }
         if punishment == "strip_50":

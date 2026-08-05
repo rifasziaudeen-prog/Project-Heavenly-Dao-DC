@@ -12,6 +12,7 @@ from discord.ext import commands
 
 from bot import utils as ui
 from core import alchemy as core_alchemy, items as core_items
+from core import math as gm
 from db import queries
 
 
@@ -399,7 +400,7 @@ class AlchemyCog(commands.Cog):
 
         elif res_type == core_alchemy.AlchemyResult.EXPLOSION:
             res_embed.title = "💥 CAULDRON EXPLOSION · 炸炉"
-            # Deduct 25% Qi and +5% Heart Demon
+            # Deduct 25% Qi and +1 Heart Demon Point (0.05 ratio)
             qi_loss = int(row["qi_current"] * 0.25)
             await self.bot.db.execute(
                 "UPDATE cultivators SET qi_current=MAX(0, qi_current-?), heart_demon_ratio=MIN(1.0, heart_demon_ratio+0.05) WHERE id=?",
@@ -407,7 +408,8 @@ class AlchemyCog(commands.Cog):
             )
             res_embed.description = (
                 "The violent flames erupt! The cauldron shatters into ash!\n"
-                f"Lost **{ui.format_qi(qi_loss, lang)}** and gained **+5% Heart Demon** penalty."
+                f"Lost **{ui.format_qi(qi_loss, lang)}** and gained "
+                f"**{gm.heart_demon_delta_str(0.05)} Heart Demon Points**."
             )
             res_embed.color = ui.CRIMSON
 
@@ -419,7 +421,7 @@ class AlchemyCog(commands.Cog):
             )
             res_embed.description = (
                 "The medicinal essence burns to dark dross. Refinement failed.\n"
-                "Gained **+1% Heart Demon** from frustration."
+                f"Gained **{gm.heart_demon_delta_str(0.01)} Heart Demon Points** from frustration."
             )
             res_embed.color = ui.OBSIDIAN
 

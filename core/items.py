@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import random
 
+from core import math as gm
 from core.affinities import check_prerequisites as _check_apt_prereqs
 
 EQUIP_SLOTS = {
@@ -46,8 +47,8 @@ def format_effect_description(effect: dict, lang: str = "bilingual") -> str:
         pct = effect.get("bonus_percent", 0)
         return f"+{pct}% Breakthrough Chance" if lang == "english" else f"+{pct}% 突破成功率"
     if etype == "heart_demon_purge":
-        pct = effect.get("amount", 0.0) * 100
-        return f"-{pct:.0f}% Heart Demon" if lang == "english" else f"-{pct:.0f}% 心魔"
+        pts = effect.get("amount", 0.0) * gm.HD_POINTS_MAX
+        return f"-{pts:g} Heart Demon Points" if lang == "english" else f"-{pts:g} 心魔点"
     if etype == "protection":
         ctype = effect.get("charm_type", "charm").replace("_", " ").title()
         return f"Grants {ctype} Charm" if lang == "english" else f"获得 {ctype} 护符"

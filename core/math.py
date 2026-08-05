@@ -268,6 +268,28 @@ def roll_erasure() -> bool:
 
 
 # ---------------------------------------------------------------------------
+# Heart Demon Points (visible 0–20 scale over the internal 0–1.0 ratio)
+# ---------------------------------------------------------------------------
+HD_POINTS_MAX = 20
+
+
+def heart_demon_points(ratio: float) -> int:
+    """Map the internal 0–1.0 heart_demon_ratio to the visible 0–20 point scale."""
+    return round(max(0.0, min(1.0, ratio)) * HD_POINTS_MAX)
+
+
+def heart_demon_delta_str(delta_ratio: float) -> str:
+    """Render a ratio change on the 0–20 point scale, e.g. '+1' or '+0.4'.
+
+    Keeps boring percentages out of player-facing text: the engine still
+    stores the 0–1.0 ratio, the UI speaks in points.
+    """
+    pts = max(0.0, min(1.0, abs(delta_ratio))) * HD_POINTS_MAX
+    sign = "+" if delta_ratio >= 0 else "-"
+    return f"{sign}{pts:g}"
+
+
+# ---------------------------------------------------------------------------
 # Heavenly Dao Erasure resolution (pure, unit-testable)
 # ---------------------------------------------------------------------------
 def resolve_erasure(charm_type: str | None) -> dict:

@@ -164,7 +164,7 @@ spent by future systems. Think of it as your *reserve of intent*.
 * **Burn to continue (overdraft)**: when Stored Qi runs dry mid-fight, you may
   **burn your cultivation base** — dantian Qi is consumed permanently at a
   fixed per-realm cost (no percentages; one flat table in `core/math.py`).
-  Consequences escalate by burn count: **3rd** → Heart Demon +10%, **5th** →
+  Consequences escalate by burn count: **3rd** → Heart Demon +2 Points, **5th** →
   forced retreat or Qi Deviation (failure drops one layer), **7th** → Heavenly
   Dao Erasure check (tier 8+). The interactive burn button arrives with the
   combat engine; the deterministic rules are already in and tested.
@@ -219,7 +219,7 @@ cultivation partners are **bonds between actual server members**, not NPCs.
   Siblings · 3 Disciples (1 master each) · 1 Rival · 10 Sect Siblings.
 * **Synergy** is computed from real stats: complementary stats, shared karma
   path (×1.2 vs ×0.7), realm proximity, and bond tier.
-* **Severance drama**: both gain Heart Demon (tier × 5%); the severer loses
+* **Severance drama**: both gain Heart Demon (tier × 1 Point); the severer loses
   100 karma; the victim gains the **Betrayed** title and a +15% breakthrough
   buff for 7 days (rage cultivation).
 * **Dual cultivation** (`/dual_cultivate`) requires a Dao Companion or Dual
@@ -267,8 +267,8 @@ Cultivators combine gathered materials into potent elixirs through a 3-stage int
 * **Refinement Outcomes**:
   * 🎉 **Success**: Refines target pill and adds it to spatial ring.
   * ✨ **Miracle (1% Chance)**: Celestial aura upgrades the output with a **1.5x effect multiplier**.
-  * 🌫️ **Failure**: Materials lost to dross + 1% Heart Demon penalty.
-  * 💥 **Explosion**: Violent flame eruption costs **25% Qi** + **5% Heart Demon** penalty.
+  * 🌫️ **Failure**: Materials lost to dross + 0.2 Heart Demon Points.
+  * 💥 **Explosion**: Violent flame eruption costs **25% Qi** + **1 Heart Demon Point**.
 ## Reincarnation System — "Death Is Not The End" (Phase 3, Step 3)
 
 Cultivators can voluntarily shed their mortal shell (Tier 5+ with half-full dantian) or undergo forced rebirth upon Heavenly Dao Erasure at Tier 8+.
@@ -333,7 +333,7 @@ scripts/        Automation scripts (setup_discord_server.py, migrate_sqlite_to_p
                 validate_migration.py, github_backup.py)
 templates/      Narrative fragment JSON — add files to extend flavor
 config/         Env-driven settings (default.py, postgres.py)
-tests/          pytest suite (220 tests covering balance, bonds, sects, items, alchemy, reincarnation,
+tests/          pytest suite (222 tests covering balance, bonds, sects, items, alchemy, reincarnation,
                 secret realms, world events, dao laws, auction, affinities, combat, global players,
                 postgres, migrations, github backup, server layout)
 ```
@@ -446,6 +446,21 @@ reincarnation lives when they play in Server B.
   *this* server, showing their global progress.
 * **Global Groq quotas** — LLM rate limits are per user, not per (user, guild).
 
+## Heart Demon Points · 心魔 (v1.9.0)
+
+The engine stores Heart Demon internally as a **0–1.0 ratio**, but players see
+it as a clean **0–20 point scale** — boring percentages are gone from the UI.
+
+* `/profile` shows `Heart Demon · 心魔: X/20`.
+* **Duel losses** give a flat **+1 Heart Demon Point** (internally +0.05).
+* All Heart Demon messages speak in points: alchemy explosions (+1 Point),
+  refinement frustration (+0.2 Points), beast-battle flee (+0.4 Points),
+  burn-to-continue (3rd burn +2 Points), Dao Bond severance (tier × 1 Point),
+  Heart Demon purge pills (−N Points), and the Heaven Panel's Dao Punish
+  (+4 Points) / Dao Bless (clear to 0).
+* Mapping lives in `core/math.py`: `heart_demon_points()` and
+  `heart_demon_delta_str()` — the engine math never changed, only the display.
+
 ## Contendance Combat Engine (v1.7.0)
 
 **Contendance** (论道决斗) is the duel engine — every round resolves from flat
@@ -469,10 +484,9 @@ hidden multipliers or percentage stacking).
   remaining HP.
 * **Dao Heart** — a 100-point mental pool drained by heart-demon intents; at 0
   you are forced to retreat and suffer a Heart Demon spike.
-* **Burn Cultivation Base** — sacrifice **dantian Qi** (your cultivation
-  base, flat per-realm cost) to instantly recover **+100 Stored Qi** and keep
-  fighting: 3rd burn +10% Heart Demon, 5th forced deviation/retreat, 7th an
-  erasure check on Tier 8+ (all within the current fight).
+* **Burn Cultivation Base** — sacrifice **dantian Qi** (your cultivation  base, flat per-realm cost) to instantly recover **+100 Stored Qi** and keep
+  fighting: 3rd burn +2 Heart Demon Points, 5th forced deviation/retreat, 7th
+  an erasure check on Tier 8+ (all within the current fight).
 * **Spirit Beasts (`/battle`)** — scripted PvE: beasts telegraph their intent
   for 1–3 phases so you can counter them, exactly like the Ancient Sword Spirit
   gathering Sword Intent.
@@ -490,6 +504,7 @@ hidden multipliers or percentage stacking).
 * **v1.6.0:** Dao Law ranks + aptitude learning speed *(Completed)*
 * **v1.7.0:** Contendance combat — techniques, duels, PvE battles, Dao Heart, burn-to-continue *(Completed)*
 * **v1.8.0:** Global player profiles *(Completed)* — see the [dedicated section](#global-player-profiles-v180)
+* **v1.9.0:** Heart Demon Points — visible 0–20 scale over the internal ratio *(Completed)* — see the [dedicated section](#heart-demon-points--心魔-v190)
 
 ---
 

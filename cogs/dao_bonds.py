@@ -348,7 +348,7 @@ class DaoBondsCog(commands.Cog):
         embed.add_field(
             name="Consequences",
             value=(
-                f"Both cultivators gain **{fx['heart_demon_both']:.0%}** 心魔 (Heart Demon).\n"
+                f"Both cultivators gain **{gm.heart_demon_delta_str(fx['heart_demon_both'])} Heart Demon Points** (心魔).\n"
                 f"The severer loses **{abs(fx['betrayer_karma'])}** karma.\n"
                 f"{partner.mention} receives the **{fx['rage_title']}** title and a "
                 f"**+{fx['rage_bonus']:.0%}** breakthrough buff for {fx['rage_duration_days']} days "
@@ -552,7 +552,7 @@ class DaoBondsCog(commands.Cog):
         embed.add_field(
             name=f"{a['username']} · {b['username']}",
             value=(f"+{ui.format_qi(gain_a)} & +{ui.format_qi(gain_b)} · "
-                   f"Heart Demon −{bonds.DUAL_HEART_DEMON_REDUCTION:.0%}"),
+                   f"Heart Demon −{gm.heart_demon_delta_str(-bonds.DUAL_HEART_DEMON_REDUCTION)} Points"),
             inline=False,
         )
         embed.add_field(

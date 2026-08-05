@@ -727,7 +727,11 @@ class CultivationCog(commands.Cog):
             inline=False,
         )
         embed.add_field(name=ui.format_title("Karma · 业力", lang), value=str(row["karma_points"]), inline=True)
-        embed.add_field(name=ui.format_title("Heart Demon · 心魔", lang), value=f"{row['heart_demon_ratio']:.0%}", inline=True)
+        embed.add_field(
+            name=ui.format_title("Heart Demon · 心魔", lang),
+            value=f"{gm.heart_demon_points(row['heart_demon_ratio'])}/{gm.HD_POINTS_MAX}",
+            inline=True,
+        )
         embed.add_field(
             name=ui.format_title("Sect · 宗门", lang),
             value=sect_name or ("None" if lang == "english" else "None · 无"),
