@@ -224,6 +224,9 @@ CREATE TABLE IF NOT EXISTS world_event_participants (
     healing_done           INTEGER NOT NULL DEFAULT 0,
     final_rank             INTEGER,
     reward_claimed         BOOLEAN NOT NULL DEFAULT FALSE,
+    hp_current             INTEGER,                  -- world-boss battlefield HP (020)
+    last_attack_at         TIMESTAMPTZ,              -- HP regen / defeat cooldown (020)
+    boss_round             INTEGER NOT NULL DEFAULT 0,  -- round index into the boss intent pattern (020)
     joined_at              TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (event_id, cultivator_id)
 );

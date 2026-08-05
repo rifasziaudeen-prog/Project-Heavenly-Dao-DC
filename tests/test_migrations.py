@@ -20,7 +20,7 @@ def test_migrations_apply_and_are_idempotent():
             db = Database(Path(d) / "mig.db")
             await db.connect()
             applied = await run_migrations(db)
-            assert applied == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19]
+            assert applied == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20]
 
             rows = await db.fetchall(
                 "SELECT name FROM sqlite_master WHERE type='table'"
@@ -125,6 +125,11 @@ def test_migrations_apply_and_are_idempotent():
             sect_cols = {r["name"] for r in await db.fetchall("PRAGMA table_info(sects)")}
             assert "last_burst_at" in sect_cols
 
+            # Migration 020 additions: world-boss field-battle state
+            part_cols = {r["name"] for r in await db.fetchall("PRAGMA table_info(world_event_participants)")}
+            for col in ("hp_current", "last_attack_at", "boss_round"):
+                assert col in part_cols
+
             # Idempotent: second run applies nothing
             assert await run_migrations(db) == []
             await db.close()
@@ -145,7 +150,7 @@ def test_migration_rerun_tolerates_duplicate_columns():
             await db.execute("DELETE FROM schema_migrations WHERE version IN (2,3,4,5,6,7,8,9,10)")
             await run_migrations(db)  # must not raise "duplicate column name"
             rows = await db.fetchall("SELECT version FROM schema_migrations")
-            assert {r["version"] for r in rows} == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19}
+            assert {r["version"] for r in rows} == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20}
             await db.close()
 
     asyncio.run(main())

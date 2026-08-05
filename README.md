@@ -55,7 +55,7 @@ enabled (required for passive Qi) — see `.env.example` for the full walkthroug
 | `/retreat` | Safely retreat from your active secret realm instance keeping acquired loot |
 | `/events` | View active and scheduled World Boss events and calamities |
 | `/event_join <event_id>` | Register participation in an active World Event |
-| `/event_attack <event_id>` | Attack active World Bosses, dealing damage and progressing HP/phases |
+| `/event_attack <event_id> <choice>` | Fight the World Boss: pick an intent (Technique / Unfold Law / Artifact / Pill / Retreat) to counter its scripted stance — costs Stored Qi |
 | `/event_status <event_id>` | Check World Boss HP bar, current phase, narrative state, and damage leaderboard |
 | `/event_claim <event_id>` | Claim post-event loot rewards based on damage rank |
 | `/spawn_event <type>` | **Admin.** Schedule or immediately spawn a server World Event |
@@ -292,14 +292,16 @@ Cultivators venture into ancient secret realm instances to battle beasts, disarm
 * **Safe Retreat**: Players can `/retreat` at any node to escape safely with all accumulated loot.
 * **Groq Tier-4 Integration**: Optional Groq LLM client (`core/groq_client.py`) generates rich narrative flavor with seamless fallback to `TemplateEngine`.
 
-## World Events & Heavenly Calamities (Phase 4, Step 1)
+## World Events & Heavenly Calamities (Phase 4, Step 1) — World-boss Contendance (v1.11.0)
 
-Server-wide World Boss encounters scheduled in advance featuring 5 event types and 5 boss HP phases.
+Server-wide World Boss encounters scheduled in advance featuring 5 event types and 5 boss HP phases — now fought with the **Contendance combat engine** instead of donation-damage.
 
 * **5 Event Types**: Demon Beast Siege, Heavenly Tribulation Rain, Ancient Ruin Awakening, Sect War, and Dao Competition.
-* **5 Boss HP Phases**: `Normal` (100%→75%) → `Enraged` (75%→50%) → `Minions Spawned` (50%→25%) → `Desperation` (25%→10%) → `Final Stand` (10%→0%).
-* **Deterministic Damage Math**: `damage = (strength * 8 + spirit * 4 + weapon) * technique * sect_array * (1 + law_mastery / 1000) * rng`.
-* **Sect Sacrifice Buffs**: Patriarchs spend treasury spirit stones for party-wide damage buffs (up to +50%), healing, and debuff immunity.
+* **5 Boss HP Phases**: `Normal` (100%→75%) → `Enraged` (75%→50%) → `Minions Spawned` (50%→25%) → `Desperation` (25%→10%) → `Final Stand` (10%→0%). Each phase is a **flat power table** (`18 → 24 → 30 → 38 → 48`).
+* **Scripted intent patterns**: each event type cycles a scripted boss stance — `gathers Sword Intent to unleash` (unfold), `rears back for a devastating strike` (technique), or `regroups` (pass). `/event_attack` shows the stance; you counter it.
+* **Counter-play with laws**: on an unfold round, unfolding **Law of Sword two ranks ahead** (rank 2+) of the boss's grasp is a **deterministic counter** — full damage to the boss, no damage to you. Technique rounds are parried by artifacts and blunted by law guards.
+* **Stored Qi per round**: every attack spends Stored Qi (technique cost, unfold 30, artifact 10); the pill intent restores Stored Qi from inventory. Your **battlefield HP** persists across attacks, recovers flat over time, and being overwhelmed is **no death** — just **+1 Heart Demon Point** and a 30-minute recovery window.
+* **Combat damage → boss bar**: the engine's round damage is flat-scaled (`BOSS_DAMAGE_SCALE = 30`) onto the colossal boss HP bar — one named constant.
 * **Leaderboard Rewards**: Top damage ranks earn unique titles, God/Immortal/Heaven-grade loot items, and spirit stone rewards.
 
 ## Dao Laws Endgame System — 5 Ranks (v1.6.0)
@@ -339,7 +341,7 @@ scripts/        Automation scripts (setup_discord_server.py, migrate_sqlite_to_p
                 validate_migration.py, github_backup.py)
 templates/      Narrative fragment JSON — add files to extend flavor
 config/         Env-driven settings (default.py, postgres.py)
-tests/          pytest suite (228 tests covering balance, bonds, sects, items, alchemy, reincarnation,
+tests/          pytest suite (236 tests covering balance, bonds, sects, items, alchemy, reincarnation,
                 secret realms, world events, dao laws, auction, affinities, combat, global players,
                 postgres, migrations, github backup, server layout)
 ```
@@ -512,6 +514,7 @@ hidden multipliers or percentage stacking).
 * **v1.8.0:** Global player profiles *(Completed)* — see the [dedicated section](#global-player-profiles-v180)
 * **v1.9.0:** Heart Demon Points — visible 0–20 scale over the internal ratio *(Completed)* — see the [dedicated section](#heart-demon-points--心魔-v190)
 * **v1.10.0:** Sect array burst — Patriarch-triggered Stored Qi pulse for the whole sect *(Completed)* — see the [sect section](#sects--spirit-stones-economy-phase-2)
+* **v1.11.0:** World-boss Contendance — scripted boss intents, law counters, Stored Qi stakes, battlefield HP *(Completed)* — see the [world events section](#world-events--heavenly-calamities-phase-4-step-1--world-boss-contendance-v1110)
 
 ---
 

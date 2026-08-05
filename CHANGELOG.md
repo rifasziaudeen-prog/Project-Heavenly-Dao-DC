@@ -5,7 +5,40 @@ All notable changes to the **Heavenly Dao Engine** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.10.0] — 2026-08-05 — Sect Array Burst (Part 5 · Commit 2) 🔆
+## [1.11.0] — 2026-08-05 — World-boss Contendance (Part 5 · Commit 3) ⚔️
+
+### Changed
+
+- **`/event_attack` is no longer donation-damage.** The World Boss now fights
+  with the Contendance combat engine: it cycles a **scripted intent pattern**
+  (unfold / technique / pass) and each attacker resolves one exchange.
+  - **Telegraphed stances** — the embed narrates the boss's current intent;
+    on an unfold round, unfolding **Law of Sword two ranks ahead** (rank 2+)
+    is a **deterministic counter** (boss takes full damage, you take none).
+    Technique rounds are parried by artifacts and blunted by unfold guards.
+  - **Stored Qi stakes** — every attack spends Stored Qi (technique cost,
+    unfold 30, artifact 10); the pill intent restores Stored Qi from
+    inventory. Rounds now have a resource cost instead of infinite free hits.
+  - **Battlefield HP** — each participant carries persistent HP (realm-based,
+    flat regen over time, pill heal +25). Being overwhelmed is **no death**:
+    **+1 Heart Demon Point** and a 30-minute recovery window.
+  - **Damage scaling** — the engine's round damage is flat-scaled onto the
+    colossal boss bar via `BOSS_DAMAGE_SCALE = 30` (one named constant).
+  - `/event_join` seeds battlefield HP; `/event_status` now shows your HP,
+    round index, recovery time, and the boss's current stance.
+- **New engine surface** (`core/world_events.py`): `boss_intent_for()`,
+  `build_boss_intent()`, `boss_stance_label()`, `resolve_boss_exchange()`,
+  plus the `BOSS_*` constant tables. The old `calculate_damage()` formula is
+  retained as legacy (still tested) but no longer drives events.
+
+### Added
+
+- **Migration 020** — `world_event_participants` gains `hp_current`,
+  `last_attack_at`, `boss_round` (applied to the live DB; Postgres parity).
+- **Tests** — intent patterns, boss intent shapes, phase-power table, the
+  Sword-Law counter, parry halving, pass-round free hits, pill risk, and the
+  damage-scale invariant (suite now **236 tests**).
+
 
 ### Added
 
