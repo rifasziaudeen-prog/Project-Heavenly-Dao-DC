@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import random
+from datetime import datetime, timezone
 
 import discord
 from discord import app_commands
@@ -19,7 +20,11 @@ from core import combat as core_cbt
 from core import dao_laws as core_dl
 from core import items as core_items
 from core import math as gm
-from db.queries import get_or_create_cultivator
+from db.queries import (
+    active_artifact,
+    get_or_create_cultivator,
+    spend_artifact_energy,
+)
 
 _EMOJI = {"technique": "⚔️", "unfold": "☯️", "artifact": "🗡️", "pill": "💊",
           "retreat": "🏳️", "pass": "⏳"}
@@ -299,6 +304,15 @@ class CombatCog(commands.Cog):
                     description=f"Rank {core_dl.law_rank(mastery)} · {core_dl.law_resistance(mastery):.0%} resist",
                     value=f"law:{name}",
                 ))
+        active = await active_artifact(self.bot.db, cultivator["id"])
+        if active:
+            ab = active["ability"]
+            options.append(discord.SelectOption(
+                label=f"🗡️ Artifact: {ab.get('name', 'Active')} ({core_cbt.ARTIFACT_COST} SQ)",
+                description=(f"Strike with the active + parry (energy "
+                             f"{active['energy']}/{active['energy_max']})"),
+                value="artifact",
+            ))
         options.append(discord.SelectOption(
             label=f"🗡️ Artifact Parry ({core_cbt.ARTIFACT_COST} SQ)",
             description=f"Block incoming damage (parry {parry})", value="artifact",
@@ -309,7 +323,7 @@ class CombatCog(commands.Cog):
         if not is_battle:
             options.append(discord.SelectOption(label="🏳️ Retreat", description="Forfeit this duel", value="retreat"))
 
-        return options, {"techs": techs, "laws": laws, "parry": parry}
+        return options, {"techs": techs, "laws": laws, "parry": parry, "active": active}
 
     def _build_intent(self, value: str, cultivator: dict, data: dict) -> dict | None:
         """Turn a select value + resolver data into a core intent dict."""
@@ -338,7 +352,16 @@ class CombatCog(commands.Cog):
             return {**base, "kind": "unfold",
                     "law": {"name": name, "rank": core_dl.law_rank(mastery), "mastery": mastery}}
         if value == "artifact":
-            return {**base, "kind": "artifact", "parry": data["parry"]}
+            intent = {**base, "kind": "artifact", "parry": data["parry"]}
+            active = data.get("active")
+            if active and active["energy"] >= active["energy_cost"]:
+                # A charged active sharpens the guard too.
+                intent["parry"] = data["parry"] + core_items.ARTIFACT_ACTIVE_PARRY_BONUS
+                intent["active_power"] = core_items.artifact_active_power(
+                    active["ability"], stats)
+                intent["energy_cost"] = active["energy_cost"]
+                intent["active_item_id"] = active["item_id"]
+            return intent
         if value == "pill":
             return {**base, "kind": "pill"}
         if value == "retreat":
@@ -527,6 +550,12 @@ class CombatCog(commands.Cog):
             await self.bot.db.execute(
                 "UPDATE cultivators SET stored_qi_current=MAX(0, stored_qi_current-?) WHERE id=?",
                 (cost, cult["id"]),
+            )
+        # Artifact active: spend spirit energy on activation.
+        if intent["kind"] == "artifact" and intent.get("energy_cost") and intent.get("active_item_id"):
+            await spend_artifact_energy(
+                self.bot.db, intent["active_item_id"], intent["energy_cost"],
+                datetime.now(timezone.utc).isoformat(),
             )
         # Technique mastery progress + pill consumption
         if intent["kind"] == "technique" and intent.get("technique_id"):

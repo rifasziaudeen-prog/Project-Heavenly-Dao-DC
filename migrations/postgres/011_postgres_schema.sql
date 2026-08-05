@@ -94,6 +94,9 @@ CREATE TABLE IF NOT EXISTS items (
     effect_data        JSONB   NOT NULL DEFAULT '{}'::jsonb,
     is_equipped        BOOLEAN NOT NULL DEFAULT FALSE,
     equipped_slot      TEXT    CHECK (equipped_slot IN ('weapon', 'technique')),
+    spirit_energy      INTEGER NOT NULL DEFAULT 0,   -- artifact actives pool (021)
+    spirit_energy_max  INTEGER NOT NULL DEFAULT 0,   -- energy cap (021)
+    last_energy_at     TIMESTAMPTZ,                  -- flat recharge clock (021)
     acquired_at        TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_items_owner ON items(owner_id);

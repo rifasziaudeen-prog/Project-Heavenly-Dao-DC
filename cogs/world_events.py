@@ -209,6 +209,10 @@ class WorldEventsCog(commands.Cog):
                 "UPDATE cultivators SET stored_qi_current=MAX(0, stored_qi_current-?) WHERE id=?",
                 (cost, row["id"]),
             )
+        if intent["kind"] == "artifact" and intent.get("energy_cost") and intent.get("active_item_id"):
+            await queries.spend_artifact_energy(
+                self.bot.db, intent["active_item_id"], intent["energy_cost"], now.isoformat(),
+            )
         restored_qi = 0
         if intent["kind"] == "pill":
             restored_qi = await self._consume_stored_qi_pill(row)
@@ -411,8 +415,16 @@ class WorldEventsCog(commands.Cog):
             }, core_cbt.LAW_UNFOLD_COST, None
 
         if choice == "artifact":
-            return {**base, "kind": "artifact", "parry": await self._parry_value(row["id"])},\
-                core_cbt.ARTIFACT_COST, None
+            parry = await self._parry_value(row["id"])
+            intent = {**base, "kind": "artifact", "parry": parry}
+            active = await queries.active_artifact(self.bot.db, row["id"])
+            if active and active["energy"] >= active["energy_cost"]:
+                intent["parry"] = parry + core_items.ARTIFACT_ACTIVE_PARRY_BONUS
+                intent["active_power"] = core_items.artifact_active_power(
+                    active["ability"], stats)
+                intent["energy_cost"] = active["energy_cost"]
+                intent["active_item_id"] = active["item_id"]
+            return intent, core_cbt.ARTIFACT_COST, None
 
         if choice == "pill":
             has_pill = await self.bot.db.fetchone(

@@ -6,9 +6,76 @@ from __future__ import annotations
 
 import json
 import random
+from datetime import datetime, timezone
 
 from core import math as gm
 from core.affinities import check_prerequisites as _check_apt_prereqs
+
+# ---------------------------------------------------------------------------
+# Artifact actives — spirit-energy weapon abilities (Part 5 depth, v1.13.0)
+# ---------------------------------------------------------------------------
+# An equipped weapon with an "active_ability" in its effect_data gains a
+# spirit-energy pool. Activating it in combat spends energy; energy recharges
+# flat over time or instantly via /recharge_artifact with spirit stones.
+ARTIFACT_ENERGY_MAX = 100           # default energy cap for actives
+ARTIFACT_ACTIVE_COST = 40           # default energy per activation (data may override)
+ARTIFACT_RECHARGE_PER_HOUR = 10     # flat passive recharge per hour
+ARTIFACT_RECHARGE_STONE_COST = 1    # spirit stones per energy point (command)
+ARTIFACT_ACTIVE_PARRY_BONUS = 5     # actives also sharpen the artifact guard
+
+
+def parse_active_ability(effect_data: str | dict) -> dict | None:
+    """Extract the active_ability block from item effect_data, or None."""
+    if isinstance(effect_data, str):
+        try:
+            effect_data = json.loads(effect_data or "{}")
+        except ValueError:
+            return None
+    ability = (effect_data or {}).get("active_ability")
+    return ability if isinstance(ability, dict) else None
+
+
+def artifact_energy_max(item_row: dict) -> int:
+    """Effective energy cap: explicit column, else the default for actives."""
+    max_energy = int(item_row.get("spirit_energy_max") or 0)
+    if max_energy > 0:
+        return max_energy
+    return ARTIFACT_ENERGY_MAX if parse_active_ability(item_row.get("effect_data") or "{}") else 0
+
+
+def recharge_energy(item_row: dict, now) -> int:
+    """Energy gained by time-based recharge since the last use (flat, pure).
+
+    A never-charged active starts full on first load; afterwards it refills
+    at ARTIFACT_RECHARGE_PER_HOUR, capped at the effective max.
+    """
+    max_energy = artifact_energy_max(item_row)
+    if max_energy <= 0:
+        return 0
+    current = int(item_row.get("spirit_energy") or 0)
+    if current >= max_energy:
+        return 0
+    last = item_row.get("last_energy_at")
+    if not last:
+        return max_energy - current  # first load: starts full
+    try:
+        last_dt = datetime.fromisoformat(last)
+    except ValueError:
+        return 0
+    if last_dt.tzinfo is None:
+        last_dt = last_dt.replace(tzinfo=timezone.utc)
+    hours = (now - last_dt).total_seconds() / 3600.0
+    if hours <= 0:
+        return 0
+    return min(max_energy - current, int(hours * ARTIFACT_RECHARGE_PER_HOUR))
+
+
+def artifact_active_power(ability: dict, stats: dict, d20: int = 0) -> int:
+    """Offensive power of an active ability: flat power + stat scaling + d20."""
+    base = int(ability.get("power", 0))
+    stat_part = (int(stats.get("physique", 10)) + int(stats.get("spirit", 10))) // 20
+    return max(1, base + stat_part + d20)
+
 
 EQUIP_SLOTS = {
     "Weapon": "Weapon",

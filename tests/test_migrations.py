@@ -20,7 +20,7 @@ def test_migrations_apply_and_are_idempotent():
             db = Database(Path(d) / "mig.db")
             await db.connect()
             applied = await run_migrations(db)
-            assert applied == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+            assert applied == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]
 
             rows = await db.fetchall(
                 "SELECT name FROM sqlite_master WHERE type='table'"
@@ -130,6 +130,15 @@ def test_migrations_apply_and_are_idempotent():
             for col in ("hp_current", "last_attack_at", "boss_round"):
                 assert col in part_cols
 
+            # Migration 021 additions: artifact spirit-energy columns
+            item_cols = {r["name"] for r in await db.fetchall("PRAGMA table_info(items)")}
+            for col in ("spirit_energy", "spirit_energy_max", "last_energy_at"):
+                assert col in item_cols
+            active_tmpl = await db.fetchone(
+                "SELECT effect_data FROM item_templates WHERE name='Heavenly Flame Blade'"
+            )
+            assert active_tmpl and "active_ability" in active_tmpl["effect_data"]
+
             # Idempotent: second run applies nothing
             assert await run_migrations(db) == []
             await db.close()
@@ -150,7 +159,7 @@ def test_migration_rerun_tolerates_duplicate_columns():
             await db.execute("DELETE FROM schema_migrations WHERE version IN (2,3,4,5,6,7,8,9,10)")
             await run_migrations(db)  # must not raise "duplicate column name"
             rows = await db.fetchall("SELECT version FROM schema_migrations")
-            assert {r["version"] for r in rows} == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20}
+            assert {r["version"] for r in rows} == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21}
             await db.close()
 
     asyncio.run(main())

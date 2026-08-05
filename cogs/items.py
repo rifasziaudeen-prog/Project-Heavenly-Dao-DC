@@ -1,6 +1,8 @@
 """Items cog — /inventory, /equip, /use, /give, and /item_info slash commands."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -382,4 +384,76 @@ class ItemsCog(commands.Cog):
         embed.add_field(name="Grade", value=item["grade"], inline=True)
         embed.add_field(name="Effect", value=eff_desc, inline=False)
 
+        await interaction.response.send_message(embed=embed)
+
+    # ==================================================== /recharge_artifact
+    @app_commands.command(
+        name="recharge_artifact",
+        description="Convert spirit stones into energy for your weapon's active ability",
+    )
+    async def recharge_artifact(
+        self, interaction: discord.Interaction, energy: int = 0
+    ) -> None:
+        me = await self._cultivator(interaction.user.id)
+        if not me:
+            await interaction.response.send_message(
+                "Please `/register` first.", ephemeral=True)
+            return
+
+        rows = await self.bot.db.fetchall(
+            "SELECT * FROM items WHERE owner_id=? AND is_equipped=1 AND item_type='Weapon'"
+            " ORDER BY grade DESC",
+            (me["id"],),
+        )
+        target = None
+        for r in rows:
+            row = dict(r)
+            if core_items.parse_active_ability(row.get("effect_data") or "{}"):
+                target = row
+                break
+        if not target:
+            await interaction.response.send_message(
+                "You have no equipped weapon with an active ability to recharge.",
+                ephemeral=True,
+            )
+            return
+
+        max_energy = core_items.artifact_energy_max(target)
+        current = int(target.get("spirit_energy") or 0)
+        missing = max_energy - current
+        if missing <= 0:
+            await interaction.response.send_message(
+                f"Your artifact is already at full energy (**{max_energy}/{max_energy}**).",
+                ephemeral=True,
+            )
+            return
+
+        amount = min(missing, energy) if energy > 0 else missing
+        cost = amount * core_items.ARTIFACT_RECHARGE_STONE_COST
+        if int(me["spirit_stones"] or 0) < cost:
+            await interaction.response.send_message(
+                f"Recharging **{amount}** energy costs **{cost:,} 💎** — you only have "
+                f"**{int(me['spirit_stones'] or 0):,}**.",
+                ephemeral=True,
+            )
+            return
+
+        now = datetime.now(timezone.utc)
+        await self.bot.db.execute(
+            "UPDATE cultivators SET spirit_stones=spirit_stones-? WHERE id=?",
+            (cost, me["id"]),
+        )
+        await self.bot.db.execute(
+            "UPDATE items SET spirit_energy=?, spirit_energy_max=?, last_energy_at=?"
+            " WHERE id=?",
+            (current + amount, max_energy, now.isoformat(), target["id"]),
+        )
+
+        embed = discord.Embed(
+            title=f"⚡ Artifact Recharged · 充能",
+            description=(f"**{target['name']}**'s spirit energy surges: "
+                         f"**{current} → {current + amount}** / {max_energy}."),
+            color=ui.GOLD,
+        )
+        embed.add_field(name="Cost · 消耗", value=f"{cost:,} 💎", inline=True)
         await interaction.response.send_message(embed=embed)

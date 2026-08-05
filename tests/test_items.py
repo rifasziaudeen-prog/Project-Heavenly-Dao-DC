@@ -88,3 +88,66 @@ def test_drop_generators():
     streak_drops = core_items.roll_cultivate_streak_drops(streak_count=10)
     for drop in streak_drops:
         assert "name" in drop and "item_type" in drop and "grade" in drop and "effect_data" in drop
+
+
+# ---------------------------------------------------------------------------
+# Artifact actives — spirit-energy weapon abilities (v1.13.0)
+# ---------------------------------------------------------------------------
+
+def test_parse_active_ability():
+    eff = {"type": "stat_buff", "stat": "physique", "amount": 35,
+           "active_ability": {"name": "Inferno Slash", "power": 18, "energy_cost": 40}}
+    ab = core_items.parse_active_ability(eff)
+    assert ab == {"name": "Inferno Slash", "power": 18, "energy_cost": 40}
+
+    assert core_items.parse_active_ability('{"type": "stat_buff", "amount": 5}') is None
+    assert core_items.parse_active_ability("not json") is None
+    assert core_items.parse_active_ability({}) is None
+
+
+def test_artifact_energy_max():
+    # Explicit column wins…
+    row = {"spirit_energy_max": 200, "effect_data": "{}"}
+    assert core_items.artifact_energy_max(row) == 200
+    # …otherwise actives get the default cap, plain items none.
+    row = {"spirit_energy_max": 0,
+           "effect_data": '{"active_ability": {"power": 18}}'}
+    assert core_items.artifact_energy_max(row) == core_items.ARTIFACT_ENERGY_MAX
+    row = {"spirit_energy_max": 0, "effect_data": "{}"}
+    assert core_items.artifact_energy_max(row) == 0
+
+
+def test_recharge_energy_first_load_starts_full():
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    row = {"spirit_energy": 0, "spirit_energy_max": 0,
+           "last_energy_at": None, "effect_data": '{"active_ability": {"power": 18}}'}
+    assert core_items.recharge_energy(row, now) == core_items.ARTIFACT_ENERGY_MAX
+
+
+def test_recharge_energy_over_time_capped():
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    row = {"spirit_energy": 30, "spirit_energy_max": 100,
+           "last_energy_at": (now - timedelta(hours=5)).isoformat(),
+           "effect_data": "{}"}
+    # 5 hours x 10/h = 50, capped at 100 - 30 = 70.
+    assert core_items.recharge_energy(row, now) == 50
+
+    full = dict(row, spirit_energy=100)
+    assert core_items.recharge_energy(full, now) == 0
+
+    # No active -> no recharge.
+    plain = {"spirit_energy": 0, "spirit_energy_max": 0, "last_energy_at": None,
+             "effect_data": "{}"}
+    assert core_items.recharge_energy(plain, now) == 0
+
+
+def test_artifact_active_power():
+    stats = {"physique": 30, "spirit": 30}
+    ability = {"power": 18, "energy_cost": 40}
+    # 18 + (60//20) + d20
+    assert core_items.artifact_active_power(ability, stats, d20=5) == 26
+    assert core_items.artifact_active_power({}, {}, d20=0) == 1  # floor

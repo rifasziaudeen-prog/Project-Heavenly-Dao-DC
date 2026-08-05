@@ -190,6 +190,21 @@ The 5 laws (Space/Time/Karma/Sword/Alchemy) live in the DB seed:
 > them, pass a flat new value at the call site or change the default. Prefer
 > flat stones in new code (the user dislikes %-wise stats).
 
+## 14b. Artifact Actives — `core/items.py`
+
+| What it does | Constant | Current |
+|---|---|---|
+| Default energy cap for actives | `ARTIFACT_ENERGY_MAX` | `100` |
+| Default energy per activation | `ARTIFACT_ACTIVE_COST` | `40` |
+| Passive recharge per hour | `ARTIFACT_RECHARGE_PER_HOUR` | `10` |
+| Spirit stones per energy point | `ARTIFACT_RECHARGE_STONE_COST` | `1` |
+| Active parry bonus | `ARTIFACT_ACTIVE_PARRY_BONUS` | `5` |
+
+Per-ability power/cost is **data** on the item template (`active_ability` in
+`effect_data`) — e.g. Inferno Slash (power 18, cost 40) on the Heavenly Flame
+Blade, Annihilation Rend (power 30, cost 60) on the Sword of Annihilation
+(`migrations/021_artifact_actives.sql`).
+
 ## 15. Items — `core/items.py` + DB seeds
 
 | What it does | Where | Notes |
@@ -219,6 +234,7 @@ The 5 laws (Space/Time/Karma/Sword/Alchemy) live in the DB seed:
 - **The world boss's damage** → `core/world_events.py` → `BOSS_PHASE_POWER`
 - **How long the sect array cooldown is** → `core/sects.py` → `ARRAY_BURST_COOLDOWN`
 - **Duel loss Heart Demon** → `core/combat.py`/`cogs/combat.py` — `0.05` (+1 Point) at the duel-loss write
+- **Artifact active power / recharge** → `core/items.py` → `artifact_active_power()`, `ARTIFACT_RECHARGE_PER_HOUR`
 - **Passive chat Qi rates** → `config/default.py` + `core/passive_logic.py`
 
 After editing: **restart the bot** (`Ctrl+C`, then `python run.py`) and run the

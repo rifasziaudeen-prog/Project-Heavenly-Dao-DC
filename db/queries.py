@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime, timezone
 
+from core import items as core_items
 from core import math as gm
 from db.database import Database
 
@@ -61,6 +63,54 @@ async def active_companions(db: Database, cultivator_id: int) -> list[dict]:
         (cultivator_id,),
     )
     return [dict(r) for r in rows]
+
+
+async def active_artifact(db: Database, cultivator_id: int) -> dict | None:
+    """Best equipped weapon with a charged active ability (after time recharge).
+
+    Returns None when no usable active is ready. Shared by the duel/battle cog
+    and the world-boss cog so the energy logic can never drift between them.
+    """
+    rows = await db.fetchall(
+        "SELECT * FROM items WHERE owner_id=? AND is_equipped=1 AND item_type='Weapon'"
+        " ORDER BY grade DESC",
+        (cultivator_id,),
+    )
+    now = datetime.now(timezone.utc)
+    for r in rows:
+        row = dict(r)
+        ability = core_items.parse_active_ability(row.get("effect_data") or "{}")
+        if not ability:
+            continue
+        gained = core_items.recharge_energy(row, now)
+        if gained > 0:
+            await db.execute(
+                "UPDATE items SET spirit_energy=spirit_energy+?, spirit_energy_max=?,"
+                " last_energy_at=? WHERE id=?",
+                (gained, core_items.artifact_energy_max(row), now.isoformat(), row["id"]),
+            )
+            row["spirit_energy"] = int(row.get("spirit_energy") or 0) + gained
+            row["spirit_energy_max"] = core_items.artifact_energy_max(row)
+        energy = int(row.get("spirit_energy") or 0)
+        energy_cost = int(ability.get("energy_cost", core_items.ARTIFACT_ACTIVE_COST))
+        if energy >= energy_cost:
+            return {
+                "item_id": row["id"],
+                "ability": ability,
+                "energy": energy,
+                "energy_max": core_items.artifact_energy_max(row),
+                "energy_cost": energy_cost,
+            }
+    return None
+
+
+async def spend_artifact_energy(db: Database, item_id: int, cost: int, now_iso: str) -> None:
+    """Spend spirit energy on an artifact activation (shared by combat cogs)."""
+    await db.execute(
+        "UPDATE items SET spirit_energy=MAX(0, spirit_energy-?), last_energy_at=?"
+        " WHERE id=?",
+        (cost, now_iso, item_id),
+    )
 
 
 async def sect_array_level(db: Database, sect_id: int | None) -> int:

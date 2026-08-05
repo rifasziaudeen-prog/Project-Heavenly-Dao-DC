@@ -187,7 +187,14 @@ def _attack_power(intent: dict, d20: int) -> dict:
         law_name = law.get("name")
         return {"power": base, "damage": base, "law": law_name, "mods": mods, "mental": False}
 
-    # artifact / pill / retreat / pass — non-offensive
+    # Artifact with a charged active ability strikes as well as parries.
+    if kind == "artifact":
+        active = int(intent.get("active_power", 0))
+        if active > 0:
+            return {"power": active, "damage": active, "law": None, "mods": mods, "mental": False}
+        return {"power": 0, "damage": 0, "law": None, "mods": mods, "mental": False}
+
+    # pill / retreat / pass — non-offensive
     return {"power": 0, "damage": 0, "law": None, "mods": mods, "mental": False}
 
 

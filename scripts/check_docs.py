@@ -102,6 +102,35 @@ def changelog_order_errors(versions: list[tuple[int, int, int]]) -> list[str]:
     return errors
 
 
+def changelog_gap_errors(versions: list[tuple[int, int, int]]) -> list[str]:
+    """Catch *missing* versions that pure ordering cannot see.
+
+    Newest-first: each consecutive pair must step down by exactly one minor
+    version on the same major line (e.g. 1.13 -> 1.12 -> 1.11), or a patch
+    drop within the same minor (1.2.1 -> 1.2.0), or a clean major-line
+    boundary (1.0 -> 0.x). A jump like 1.13 -> 1.11 with no 1.12 is a gap.
+    """
+    errors = []
+    for above, below in zip(versions, versions[1:]):
+        amaj, amin, apatch = above
+        bmaj, bmin, bpatch = below
+        if amaj == bmaj:
+            clean = (amin == bmin + 1) or (amin == bmin and apatch > bpatch)
+        else:
+            clean = amaj == bmaj + 1
+        if not clean:
+            if amaj == bmaj and amin > bmin + 1:
+                detail = f" — missing version {amaj}.{amin - 1}.0?"
+            else:
+                detail = " — expected a step down of exactly one minor " \
+                    "(or a clean major-line boundary)"
+            errors.append(
+                f"CHANGELOG gap: [{above[0]}.{above[1]}.{above[2]}] is followed "
+                f"by [{below[0]}.{below[1]}.{below[2]}]{detail}"
+            )
+    return errors
+
+
 # --------------------------------------------------------------------------- check 4: migrations
 def migration_versions(migrations_dir: Path) -> set[int]:
     versions = set()
@@ -163,10 +192,10 @@ def main(argv: list[str] | None = None) -> int:
     if not versions:
         problems.append("CHANGELOG has no '## [x.y.z]' entries to check.")
     else:
-        errors = changelog_order_errors(versions)
+        errors = changelog_order_errors(versions) + changelog_gap_errors(versions)
         problems.extend(errors)
         if not errors:
-            notes.append(f"CHANGELOG newest-first ✅ ({len(versions)} releases)")
+            notes.append(f"CHANGELOG newest-first, no gaps ✅ ({len(versions)} releases)")
 
     # 4 — migration version lists
     disk_versions = migration_versions(MIGRATIONS_DIR)

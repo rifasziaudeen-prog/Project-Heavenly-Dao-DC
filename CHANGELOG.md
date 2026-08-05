@@ -5,7 +5,38 @@ All notable changes to the **Heavenly Dao Engine** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.12.0] — 2026-08-05 — Developer Experience Upgrade 🛠️
+## [1.13.0] — 2026-08-05 — Artifact Active Abilities ⚡
+
+### Added
+
+- **Spirit-energy weapon actives** — an equipped weapon with an
+  `active_ability` in its `effect_data` gains a spirit-energy pool. Choosing
+  the 🗡️ Artifact intent in combat with a charged active **strikes with the
+  ability's power and keeps the parry**; when recharging, it stays a pure
+  guard. Works in `/contend`, `/battle`, and the World Boss.
+  - **Energy economy**: depletes on activation, recharges **flat over time**
+    (10/hour, first load starts full) or instantly via new
+    **`/recharge_artifact`** (1 💎 per energy point). No percentages.
+  - **Seeded actives**: the Heavenly Flame Blade gains **Inferno Slash**
+    (power 18, cost 40) and a new God-grade **Sword of Annihilation** gains
+    **Annihilation Rend** (power 30, cost 60). Any item template can carry an
+    active via `effect_data`.
+- **Migration 021** — `items` gains `spirit_energy`, `spirit_energy_max`,
+  `last_energy_at` (applied to the live DB; Postgres parity). Created with
+  the new `scripts/new_feature.py` scaffolder — it auto-patched the version
+  assertions, proving the dev tooling on a real feature.
+- **Tests** — active parsing, energy caps, time-based recharge, active power,
+  and a combat resolve round where a charged artifact strikes (suite now
+  **255 tests**).
+
+### Changed
+
+- `core/items.py` gains the artifact-active constants and pure helpers
+  (`ARTIFACT_ENERGY_MAX`, `ARTIFACT_RECHARGE_PER_HOUR`, `parse_active_ability()`,
+  `recharge_energy()`, `artifact_active_power()`); `core/combat.py` lets an
+  artifact intent with `active_power` attack while still defending.
+
+## [1.12.0] — 2026-08-05 — Developer Experience Tooling 🛠️
 
 ### Added
 
@@ -30,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the rules of thumb (numbers in `core/*.py`, commands in the README table,
   migrations through the scaffolder).
 
+## [1.11.0] — 2026-08-05 — World-boss Contendance ⚔️
 
 ### Changed
 
@@ -63,6 +95,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Sword-Law counter, parry halving, pass-round free hits, pill risk, and the
   damage-scale invariant (suite now **236 tests**).
 
+## [1.10.0] — 2026-08-05 — Sect Array Burst 🔆
 
 ### Added
 
@@ -86,6 +119,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stored_qi_max_bonus, ...)`), so it stacks with pills and passives but never
   overflows.
 
+## [1.9.0] — 2026-08-05 — Heart Demon Points 😈
 
 ### Added
 

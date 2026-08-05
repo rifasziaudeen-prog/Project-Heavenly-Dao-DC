@@ -188,3 +188,25 @@ def test_beast_lookup_and_pattern():
     # Patterns cycle
     assert cbt.beast_intent_for(beast, 0) == beast["intents"][0]
     assert cbt.beast_intent_for(beast, len(beast["intents"])) == beast["intents"][0]
+
+
+def test_artifact_active_ability_attacks():
+    """An artifact with a charged active strikes as well as parries (v1.13.0)."""
+    basic = {
+        "kind": "technique",
+        "technique": {"base_damage": 8, "stored_qi_cost": 5, "law_affinity": None},
+        "entries": [], "rank": 1,
+        "laws": {}, "stats": {"physique": 10, "spirit": 10}, "parry": 0,
+    }
+    passive = {**basic, "kind": "artifact", "parry": 20}
+    active = {**basic, "kind": "artifact", "parry": 20, "active_power": 25}
+
+    outcome_passive = cbt.resolve_round(basic, passive, d20_a=10, d20_b=10)
+    outcome_active = cbt.resolve_round(basic, active, d20_a=10, d20_b=10)
+
+    # The passive artifact never strikes back…
+    assert outcome_passive["damage_a"] == 0
+    # …the charged one does (25 vs basic 8+2+10=20 -> 25 wins, basic takes damage).
+    assert outcome_active["damage_a"] > 0
+    # Parry still halves what the artifact takes.
+    assert outcome_active["damage_b"] <= max(0, outcome_passive["damage_b"])

@@ -42,6 +42,7 @@ enabled (required for passive Qi) — see `.env.example` for the full walkthroug
 | `/equip <item_name>` | Equip or unequip weapons or technique scrolls (max 1 weapon, 1 scroll) |
 | `/use <item_name>` | Consume pills, talismans, or charms (restores Qi, purges Heart Demon, or grants protection) |
 | `/give @user <item_name> [quantity]` | Transfer items to another cultivator in the server |
+| `/recharge_artifact [energy]` | Convert spirit stones into spirit energy for your equipped weapon's active ability |
 | `/item_info <item_name>` | Inspect grade, lore, item type, equipped status, and parsed effect breakdown |
 | `/recipes [grade]` | View known pill recipes, required ingredients, base success rates, and outputs |
 | `/alchemy_status` | View your alchemy mastery level, equipped cauldron bonus, fame, and history |
@@ -249,6 +250,23 @@ treasuries, and defensive array upgrades.
 * **Spirit stone wallet**: players earn **+10 spirit stones** per successful
   breakthrough. Stones can be donated to the sect treasury via `/sect_donate`.
 
+## Artifact Active Abilities · 法宝 (v1.13.0)
+
+Equipped weapons can carry a **spirit-energy active ability** — a charged
+strike you unleash by choosing the Artifact intent in combat.
+
+* **Actives live on the item** — a weapon's `effect_data` may carry
+  `"active_ability": {"name", "power", "energy_cost"}` (seeded on the
+  **Heavenly Flame Blade** and the new God-grade **Sword of Annihilation**).
+* **Spirit energy pool** — each active has an energy cap (default 100) that
+  depletes on activation. Energy recharges **flat over time** (10/hour) or
+  instantly via **`/recharge_artifact`** (1 💎 per energy point).
+* **In combat** — choosing 🗡️ Artifact with a charged active strikes with its
+  power **and** keeps the parry; when it's recharging, the intent is a pure
+  guard. Works in `/contend`, `/battle`, and the World Boss.
+* Tuning lives in `core/items.py` (`ARTIFACT_ENERGY_MAX`,
+  `ARTIFACT_ACTIVE_COST`, `ARTIFACT_RECHARGE_PER_HOUR`, …) — see `BALANCE.md`.
+
 ## Inventory & Items System (Phase 3, Step 1)
 
 Cultivators collect, equip, consume, and trade items across five grades (`Mortal`, `Earth`, `Heaven`, `Immortal`, `God`).
@@ -341,7 +359,7 @@ scripts/        Automation scripts (setup_discord_server.py, migrate_sqlite_to_p
                 validate_migration.py, github_backup.py)
 templates/      Narrative fragment JSON — add files to extend flavor
 config/         Env-driven settings (default.py, postgres.py)
-tests/          pytest suite (249 tests covering balance, bonds, sects, items, alchemy, reincarnation,
+tests/          pytest suite (256 tests covering balance, bonds, sects, items, alchemy, reincarnation,
                 secret realms, world events, dao laws, auction, affinities, combat, global players,
                 postgres, migrations, github backup, server layout)
 ```
@@ -535,6 +553,8 @@ hidden multipliers or percentage stacking).
 * **v1.9.0:** Heart Demon Points — visible 0–20 scale over the internal ratio *(Completed)* — see the [dedicated section](#heart-demon-points--心魔-v190)
 * **v1.10.0:** Sect array burst — Patriarch-triggered Stored Qi pulse for the whole sect *(Completed)* — see the [sect section](#sects--spirit-stones-economy-phase-2)
 * **v1.11.0:** World-boss Contendance — scripted boss intents, law counters, Stored Qi stakes, battlefield HP *(Completed)* — see the [world events section](#world-events--heavenly-calamities-phase-4-step-1--world-boss-contendance-v1110)
+* **v1.12.0:** Developer experience upgrade — `BALANCE.md` tuning sheet, `new_feature.py` scaffolder, `check_docs.py` drift-linter *(Completed)*
+* **v1.13.0:** Artifact active abilities — spirit-energy weapon strikes with time/stone recharge *(Completed)* — see the [dedicated section](#artifact-active-abilities--法宝-v1130)
 
 ---
 

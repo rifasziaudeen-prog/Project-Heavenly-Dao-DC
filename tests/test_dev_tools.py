@@ -111,6 +111,20 @@ def test_changelog_order():
     assert len(errors) == 1 and "1.11.0" in errors[0]
 
 
+def test_changelog_gap_detection():
+    """A missing version (1.13 -> 1.11) must be caught even when order is fine."""
+    gap = "## [1.13.0] — x\n## [1.11.0] — y\n## [1.10.0] — z\n"
+    assert cd.changelog_order_errors(cd.changelog_versions(gap)) == []
+    errors = cd.changelog_gap_errors(cd.changelog_versions(gap))
+    assert len(errors) == 1 and "1.12.0" in errors[0]
+
+    good = "## [1.2.0] — x\n## [1.1.0] — y\n## [1.0.0] — z\n## [0.2.0] — a\n## [0.1.0] — b\n"
+    assert cd.changelog_gap_errors(cd.changelog_versions(good)) == []
+
+    patch_drop = "## [1.2.1] — x\n## [1.2.0] — y\n"
+    assert cd.changelog_gap_errors(cd.changelog_versions(patch_drop)) == []
+
+
 def test_migration_version_parsers(tmp_path):
     (tmp_path / "003_sects.sql").touch()
     (tmp_path / "007_x.sql").touch()
