@@ -5,7 +5,31 @@ All notable changes to the **Heavenly Dao Engine** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.11.0] — 2026-08-05 — World-boss Contendance (Part 5 · Commit 3) ⚔️
+## [1.12.0] — 2026-08-05 — Developer Experience Upgrade 🛠️
+
+### Added
+
+- **`BALANCE.md` — the tuning sheet.** Every game number now maps to its exact
+  named constant and file, organized by system, with a "I want to change…"
+  cheat-sheet. Tuning a number is now a one-file edit with no hunting.
+- **`scripts/new_feature.py`** — one command scaffolds a feature: auto-numbers
+  the next migration, creates the stub, and auto-patches the hardcoded version
+  assertions in `tests/test_migrations.py` that used to break the suite on
+  every new migration. Idempotent (re-runs never duplicate versions).
+- **`scripts/check_docs.py`** — drift-linter: verifies the README test count
+  against real pytest collection, the command table against registered
+  commands, CHANGELOG newest-first ordering, and migration version lists.
+  First run immediately caught real drift (stale test count + two commands
+  that had slipped out of the table).
+- **Tests** — `tests/test_dev_tools.py` (13 tests covering both scripts,
+  including the idempotency regression). Suite now **249 tests**.
+
+### Changed
+
+- README gains a **Developer tooling** section documenting both scripts and
+  the rules of thumb (numbers in `core/*.py`, commands in the README table,
+  migrations through the scaffolder).
+
 
 ### Changed
 
