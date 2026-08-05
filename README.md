@@ -341,7 +341,7 @@ scripts/        Automation scripts (setup_discord_server.py, migrate_sqlite_to_p
                 validate_migration.py, github_backup.py)
 templates/      Narrative fragment JSON — add files to extend flavor
 config/         Env-driven settings (default.py, postgres.py)
-tests/          pytest suite (236 tests covering balance, bonds, sects, items, alchemy, reincarnation,
+tests/          pytest suite (249 tests covering balance, bonds, sects, items, alchemy, reincarnation,
                 secret realms, world events, dao laws, auction, affinities, combat, global players,
                 postgres, migrations, github backup, server layout)
 ```
@@ -412,6 +412,25 @@ To rebuild on a fresh server: invite the bot, run `/setup_server` once, done.
 * **`MIGRATION.md`** — SQLite → PostgreSQL path and the P0 schema decisions
 * **`DEPLOY_WISPBYTE.md`** — free 24/7 hosting walkthrough (wispbyte)
 * **`.env.example`** — annotated template for every environment variable
+
+## Developer tooling
+
+Two scripts keep changes cheap and docs honest:
+
+```bash
+# Scaffold a new feature: auto-numbers the migration, creates the stub,
+# and patches the version assertions that used to break the test suite.
+python scripts/new_feature.py <snake_case_name>        # add --dry-run to preview
+
+# Drift-linter: verifies README test count, command table, CHANGELOG
+# ordering, and migration version lists against the real code.
+python scripts/check_docs.py                            # add --quick to skip pytest
+```
+
+Rules of thumb when changing anything:
+* Game numbers go in named constants inside `core/*.py` — see `BALANCE.md`.
+* New slash commands need a README table row (or `check_docs.py` will fail).
+* New migrations go through `new_feature.py` (or patch the version lists by hand).
 
 ## Troubleshooting
 

@@ -64,3 +64,70 @@ def test_cli_dry_run_accepts_snake_case():
 
 def test_cli_rejects_bad_name():
     assert nf.main(["Bad Name!", "--dry-run"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# check_docs.py — pure parsers
+# ---------------------------------------------------------------------------
+from scripts import check_docs as cd
+
+
+def test_readme_test_count():
+    assert cd.readme_test_count("tests/  pytest suite (236 tests covering balance") == 236
+    assert cd.readme_test_count("no claim here") is None
+
+
+def test_readme_commands_only_in_commands_section():
+    text = (
+        "# Title\n"
+        "## Commands\n"
+        "| `/cultivate` | do it |\n"
+        "| `/event_attack <event_id> <choice>` | fight |\n"
+        "| `/sect_array_burst` | pulse |\n"
+        "## Game design\n"
+        "Use `/hidden_command` in prose — not a table row.\n"
+    )
+    assert cd.readme_commands(text) == {"cultivate", "event_attack", "sect_array_burst"}
+
+
+def test_commands_in_code(tmp_path):
+    (tmp_path / "a.py").write_text(
+        '@app_commands.command(name="cultivate")\n'
+        '@app_commands.command(\n    name="event_attack",\n    description="x")\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "b.py").write_text(
+        "async def helper():\n    pass\n", encoding="utf-8"
+    )
+    assert cd.commands_in_code(tmp_path) == {"cultivate", "event_attack"}
+
+
+def test_changelog_order():
+    good = "## [1.11.0] — x\n## [1.10.0] — y\n## [1.9.0] — z\n"
+    assert cd.changelog_order_errors(cd.changelog_versions(good)) == []
+
+    bad = "## [1.9.0] — x\n## [1.11.0] — y\n## [1.10.0] — z\n"
+    errors = cd.changelog_order_errors(cd.changelog_versions(bad))
+    assert len(errors) == 1 and "1.11.0" in errors[0]
+
+
+def test_migration_version_parsers(tmp_path):
+    (tmp_path / "003_sects.sql").touch()
+    (tmp_path / "007_x.sql").touch()
+    assert cd.migration_versions(tmp_path) == {3, 7}
+
+    test_text = 'assert applied == [1, 2, 3, 4, 5, 6, 7]\n'
+    assert cd.test_file_versions(test_text) == {1, 2, 3, 4, 5, 6, 7}
+    assert cd.test_file_versions("nothing here") == set()
+
+
+def test_patch_version_lists_idempotent_no_duplicates():
+    """Re-running the scaffolder for the same feature must not duplicate a version."""
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
+        test_file = Path(d, "test_migrations.py")
+        test_file.write_text(SAMPLE_TEST, encoding="utf-8")
+        assert nf.patch_version_lists(test_file, 21) == []
+        assert nf.patch_version_lists(test_file, 21) == []  # second run
+        patched = test_file.read_text(encoding="utf-8")
+        assert patched.count("21") == 2  # once in each list, never twice
+        assert "20, 21]" in patched and "21, 21]" not in patched

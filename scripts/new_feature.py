@@ -10,7 +10,8 @@ What it does:
      ``migrations/NNN_<name>.sql`` with a header template.
   2. Patches the hardcoded version lists in ``tests/test_migrations.py``
      (the "applied == [...]" and rerun "== {…}" assertions) so a new
-     migration never breaks the suite again.
+     migration never breaks the suite again. Idempotent — re-running for
+     the same name never duplicates a version.
   3. Prints the rest-of-the-feature checklist (Postgres parity, core stub,
      cog command, tests, docs) so nothing is forgotten.
 
@@ -77,6 +78,26 @@ def create_migration(migrations_dir: Path, name: str) -> Path:
     return path
 
 
+def _ensure_in_list(
+    text: str, pattern: str, version: int, closing: str
+) -> tuple[str, bool]:
+    """Return (text, ok) with `version` guaranteed inside the matched list.
+
+    Idempotent: if the version is already present, the text is untouched —
+    re-running the scaffolder for the same feature can never duplicate it.
+    ``ok`` is False only when the pattern itself is missing.
+    """
+    match = re.search(pattern, text)
+    if not match:
+        return text, False
+    numbers = {int(x) for x in re.findall(r"\d+", match.group(1))}
+    if version in numbers:
+        return text, True
+    return (
+        text[: match.end(1)] + f", {version}{closing}" + text[match.end(1) + 1:]
+    ), True
+
+
 def patch_version_lists(test_file: Path, version: int) -> list[str]:
     """Add `version` to the hardcoded version assertions; returns warnings."""
     if not test_file.exists():
@@ -85,12 +106,12 @@ def patch_version_lists(test_file: Path, version: int) -> list[str]:
     original = text
 
     # 1) "assert applied == [1, 2, …]"
-    text, n_list = re.subn(
-        r"(applied == \[[\d, ]+)\]", rf"\1, {version}]", text, count=1
+    text, n_list = _ensure_in_list(
+        text, r"(applied == \[[\d, ]+)\]", version, "]"
     )
     # 2) "assert {r[\"version\"] for r in rows} == {1, 2, …}"
-    text, n_set = re.subn(
-        r"(== \{[0-9, ]+)\}", rf"\1, {version}}}", text, count=1
+    text, n_set = _ensure_in_list(
+        text, r"(== \{[0-9, ]+)\}", version, "}"
     )
 
     if text != original:
@@ -118,6 +139,7 @@ Still to do (the rest of a feature — see BALANCE.md for where numbers live):
   6. Docs: CHANGELOG.md (newest-first), README.md command table + roadmap,
      MIGRATION.md if relevant.
   7. Run: python -m pytest -q   (suite must stay green)
+  8. Run: python scripts/check_docs.py   (docs must stay in sync)
 """
 
 
