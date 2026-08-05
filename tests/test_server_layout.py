@@ -25,7 +25,7 @@ def test_layout_has_no_validation_errors() -> None:
 
 
 def test_blueprint_sizes() -> None:
-    assert len(layout.ROLES_SPEC) == 28
+    assert len(layout.ROLES_SPEC) == 34
     assert len([c for cat in layout.STRUCTURE for c in cat["channels"]]) == 34
     assert len(layout.STRUCTURE) == 8
 

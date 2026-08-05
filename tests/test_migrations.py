@@ -20,7 +20,7 @@ def test_migrations_apply_and_are_idempotent():
             db = Database(Path(d) / "mig.db")
             await db.connect()
             applied = await run_migrations(db)
-            assert applied == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13]
+            assert applied == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14]
 
             rows = await db.fetchall(
                 "SELECT name FROM sqlite_master WHERE type='table'"
@@ -81,6 +81,12 @@ def test_migrations_apply_and_are_idempotent():
             await db.fetchone("SELECT intent_sword FROM cultivators LIMIT 1")
             await db.fetchone("SELECT special_root FROM cultivators LIMIT 1")
 
+            # Migration 014 additions: 16-realm ladder remap + transcendence
+            cult_cols = {r["name"] for r in await db.fetchall("PRAGMA table_info(cultivators)")}
+            for col in ("transcendence_count", "legacy_passives",
+                        "transcendence_capacity_bonus", "transcendence_qi_gain_bonus"):
+                assert col in cult_cols
+
             # Idempotent: second run applies nothing
             assert await run_migrations(db) == []
             await db.close()
@@ -101,7 +107,44 @@ def test_migration_rerun_tolerates_duplicate_columns():
             await db.execute("DELETE FROM schema_migrations WHERE version IN (2,3,4,5,6,7,8,9,10)")
             await run_migrations(db)  # must not raise "duplicate column name"
             rows = await db.fetchall("SELECT version FROM schema_migrations")
-            assert {r["version"] for r in rows} == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13}
+            assert {r["version"] for r in rows} == {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14}
+            await db.close()
+
+    asyncio.run(main())
+
+
+def test_migration_014_realm_remap():
+    """The 16-realm remap must convert old-ladder rows exactly (regression)."""
+    async def main() -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
+            db = Database(Path(d) / "remap.db")
+            await db.connect()
+            await run_migrations(db)
+            await db.execute(
+                "INSERT INTO cultivators (user_id, guild_id, username, realm_tier, realm_sub_stage)"
+                " VALUES (?,?,?,?,?)",
+                (1, 1, "old7", 7, 4),
+            )
+            await db.execute(
+                "INSERT INTO cultivators (user_id, guild_id, username, realm_tier, realm_sub_stage)"
+                " VALUES (?,?,?,?,?)",
+                (2, 1, "old9", 9, 2),
+            )
+            # Same UPDATE verbatim from migration 014
+            await db.execute(
+                "UPDATE cultivators SET realm_tier = CASE realm_tier"
+                " WHEN 6 THEN 6 WHEN 7 THEN 8 WHEN 8 THEN 9 WHEN 9 THEN 10 ELSE realm_tier END,"
+                " realm_sub_stage = CASE realm_sub_stage"
+                " WHEN 1 THEN 1 WHEN 2 THEN 3 WHEN 3 THEN 6 WHEN 4 THEN 9 ELSE realm_sub_stage END"
+            )
+            rows = {
+                r["username"]: (r["realm_tier"], r["realm_sub_stage"])
+                for r in await db.fetchall(
+                    "SELECT username, realm_tier, realm_sub_stage FROM cultivators"
+                )
+            }
+            assert rows["old7"] == (8, 9)    # Dao Fusion Peak -> Dao Fusion 9th Layer
+            assert rows["old9"] == (10, 3)   # Immortal Mid -> True Immortal 3rd Layer
             await db.close()
 
     asyncio.run(main())

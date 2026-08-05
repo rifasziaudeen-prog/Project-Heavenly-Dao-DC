@@ -91,7 +91,8 @@ class CultivationCog(commands.Cog):
                 description=(
                     "• `/register` — Awaken your cultivator persona and enter the Heavenly Dao\n"
                     "• `/cultivate` — Absorb spiritual Qi into your dantian (1h cooldown)\n"
-                    "• `/breakthrough` — Attempt to ascend to the next realm or sub-stage\n"
+                    "• `/breakthrough` — Attempt to ascend to the next realm or layer\n"
+                    "• `/transcend` — At the summit (Beyond Dao, 9th layer): shed your vessel for permanent gifts\n"
                     "• `/profile` — View your realm, Qi capacity, stats, titles, and physique\n"
                     "• `/allocate <stat> <points>` — Distribute stat points (physique, spirit, luck, comp)\n"
                     "• `/leaderboard` — View the server's top cultivators and realm rankings"
@@ -270,7 +271,7 @@ class CultivationCog(commands.Cog):
             value=f"{in_meta['emoji']} {in_meta['name']} — {in_meta['effects']}",
             inline=True,
         )
-        embed.set_footer(text="Mortal Meridian · 凡人体质 | Realm 1/9 · 凡人初期")
+        embed.set_footer(text="Mortal Meridian · 凡人体质 | Realm 1/16 · 凡人一层")
         await interaction.response.send_message(embed=embed)
 
     # ============================================================= /cultivate
@@ -305,6 +306,7 @@ class CultivationCog(commands.Cog):
             sect_array_level=await sect_array_level(self.bot.db, row["sect_id"]),
             has_sect=bool(row["sect_id"]),
             active_companions=await active_companions(self.bot.db, row["id"]),
+            flat_bonus=row.get("transcendence_qi_gain_bonus", 0),
         )
         await self.bot.db.execute(
             "UPDATE cultivators SET qi_current = qi_current + ?, last_cultivate_at = ?"
@@ -341,12 +343,14 @@ class CultivationCog(commands.Cog):
             self.bot.db, interaction.guild_id, interaction.user.id,
             interaction.user.display_name,
         )
-        if row["realm_tier"] >= gm.MAX_TIER and row["realm_sub_stage"] >= 4:
+        if row["realm_tier"] >= gm.MAX_TIER and row["realm_sub_stage"] >= gm.MAX_LAYER:
             embed = discord.Embed(
                 title="Summit Reached · 道之巅",
                 description=(
                     f"{interaction.user.mention}, you stand at the **summit of cultivation** — "
-                    "Immortal 巅峰 (Peak). The Dao has no further realms to offer."
+                    "Beyond Dao 超脱 (9th Layer). The Dao has no further realms to offer... "
+                    "but the **Heavens themselves** await. Use `/transcend` to shed this "
+                    "vessel and begin a new cycle with permanent gifts."
                 ),
                 color=ui.GOLD,
             )
@@ -371,15 +375,15 @@ class CultivationCog(commands.Cog):
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
-        # Tier 7 -> Tier 8 Dao Fusion Gate check
-        if row["realm_tier"] == 7 and row["realm_sub_stage"] == 4:
+        # Tier 8 -> Tier 9 Dao Fusion Gate check (Void Refinement inserted at 7)
+        if row["realm_tier"] == 8 and row["realm_sub_stage"] == gm.MAX_LAYER:
             p_laws = await queries.cultivator_laws_all(self.bot.db, row["id"])
             from core import dao_laws as core_dl
             if not core_dl.has_dao_fusion_requirement(p_laws):
                 embed = discord.Embed(
                     title="Dao Fusion Gate Sealed · 融合之门受阻",
                     description=(
-                        "To achieve **Dao Fusion Ascension (Tier 7→8)**, you must reach **100% Complete Mastery** "
+                        "To achieve **Dao Fusion Ascension (Tier 8→9)**, you must reach **100% Complete Mastery** "
                         "in at least one Fundamental Dao Law! Use `/laws` and `/comprehend` to master a law."
                     ),
                     color=ui.CRIMSON,
@@ -428,7 +432,8 @@ class CultivationCog(commands.Cog):
             "UPDATE cultivators SET realm_tier=?, realm_sub_stage=?, qi_current=0,"
             " qi_capacity=?, failure_streak=0, stat_points=?,"
             " spirit_stones=spirit_stones+? WHERE id=?",
-            (new_tier, new_sub, gm.qi_capacity_for(new_tier),
+            (new_tier, new_sub,
+             gm.qi_capacity_for(new_tier) + row.get("transcendence_capacity_bonus", 0),
              row["stat_points"] + 2, sects.SPIRIT_STONES_PER_BREAKTHROUGH, row["id"]),
         )
 
@@ -501,7 +506,7 @@ class CultivationCog(commands.Cog):
                 new_sub -= 1
             elif new_tier > 1:
                 new_tier -= 1
-                new_sub = 4
+                new_sub = gm.MAX_LAYER
             updates.update({
                 "realm_tier": new_tier, "realm_sub_stage": new_sub,
                 "karma_points": row["karma_points"] - 50,
@@ -533,7 +538,10 @@ class CultivationCog(commands.Cog):
                 "realm_tier": 1 if result["erased"] else row["realm_tier"],
                 "realm_sub_stage": 1 if result["erased"] else row["realm_sub_stage"],
                 "qi_current": int(halved_qi * result["qi_refund"]),
-                "qi_capacity": gm.qi_capacity_for(1) if result["erased"] else row["qi_capacity"],
+                "qi_capacity": (
+                    gm.qi_capacity_for(1) + row.get("transcendence_capacity_bonus", 0)
+                    if result["erased"] else row["qi_capacity"]
+                ),
                 "comprehension": new_stats["comprehension"],
                 "luck": new_stats["luck"],
                 "heart_demon_ratio": max(

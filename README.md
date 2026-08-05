@@ -33,6 +33,7 @@ enabled (required for passive Qi) — see `.env.example` for the full walkthroug
 | `/register` | Awaken your cultivation profile |
 | `/cultivate` | Absorb 灵力 (Qi) — 30 min cooldown |
 | `/breakthrough` | Attempt a tribulation when your dantian is full (awards spirit stones & item drops on success) |
+| `/transcend` | At the summit (Beyond Dao, 9th layer): shed your vessel and restart with permanent gifts |
 | `/allocate <stat> [amount]` | Spend stat points earned from breakthroughs |
 | `/profile [member]` | View cultivation profile, spirit stone balance, and bond count |
 | `/aptitudes [member]` | View Spiritual Root profile — Five Phases, Martial Intents & Yin-Yang balance |
@@ -71,7 +72,7 @@ enabled (required for passive Qi) — see `.env.example` for the full walkthroug
 | `/trade_accept` / `/trade_decline` | Accept or decline a pending P2P trade offer |
 | `/heaven_panel` | **Admin.** Server stats + Dao Punish / Dao Bless / Spawn Event / Broadcast |
 | `/dao_config` | **Admin.** Per-guild config (language mode [English/Bilingual], admin role, erasure toggle, channels, gender roles) |
-| `/setup_server` | **Admin.** Build the full realm: 28 roles with permissions, 8 categories & 34 channels (incl. voice + hidden staff area), welcome guides, and the self-serve reaction-role board |
+| `/setup_server` | **Admin.** Build the full realm: 34 roles with permissions, 8 categories & 34 channels (incl. voice + hidden staff area), welcome guides, and the self-serve reaction-role board |
 | `/dao_bond @user <type>` | Propose a Dao Bond with another cultivator (requires Tier 2+) |
 | `/dao_bond_accept @user` / `/dao_bond_decline @user` | Answer a pending bond proposal |
 | `/dao_bond_sever @user [reason]` | Sever a bond — public drama, Heart Demon for both |
@@ -93,9 +94,10 @@ messages in disabled (spam) channels don't count.
 
 ## Game design (per the v2.0 blueprint + Kimi review)
 
-* **Balance**: exponential breakthrough difficulty (15 → 1886), Heart Demon
-  non-linear penalty, Karma ±10%, sect bonus, and a **Dao Mercy** pity system
-  (+5% per failed attempt, capped +25%). Success chance is clamped to 5–95%.
+* **Balance**: exponential breakthrough difficulty (15 → 167,000) across a
+  16-realm × 9-layer ladder, Heart Demon non-linear penalty, Karma ±10%, sect
+  bonus, and a **Dao Mercy** pity system (+5% per failed attempt, capped
+  +25%). Success chance is clamped to 5–95%.
 * **Qi economy**: diminishing returns on comprehension (logarithmic), companion
   bonuses additive & hard-capped at 2x, array bonus capped at +50%.
 * **Heavenly Dao Erasure**: 0.5% on tier 8+ **failures**. Without a charm you
@@ -106,6 +108,37 @@ messages in disabled (spam) channels don't count.
   The Groq client (`ENABLE_GROQ=true`) is wired for Tier-4 moments with strict
   rate limits (1/player/24h, 10/hour global) and automatic template fallback.
 * **Language Modes**: Server admins can toggle between **Pure English UI** (`/dao_config language:english`) and **Bilingual UI** (`/dao_config language:bilingual`).
+
+## 16 Realms × 9 Layers + Transcendence (v1.4.0)
+
+The cultivation ladder spans **16 realms × 9 layers** (144 sub-stages). The
+first nine realms follow the classic Xianxia path; the top seven ascend
+beyond the mortal heavens:
+
+| # | Realm | # | Realm |
+|---|---|---|---|
+| 1 | Mortal 凡人 | 9 | Tribulation Transcendence 渡劫 |
+| 2 | Qi Condensation 炼气 | 10 | True Immortal 真仙 |
+| 3 | Foundation Establishment 筑基 | 11 | Golden Immortal 金仙 |
+| 4 | Core Formation 金丹 | 12 | Primordial Chaos 混沌 |
+| 5 | Nascent Soul 元婴 | 13 | Dao Ancestor 道祖 |
+| 6 | Soul Transformation 化神 | 14 | Heavenly Venerable 天尊 |
+| 7 | Void Refinement 炼虚 | 15 | Great Emperor 大帝 |
+| 8 | Dao Fusion 合体 | 16 | Beyond Dao 超脱 |
+
+* Each realm has **9 layers** (一层 → 九层); the 9th layer is the tribulation
+  gate. Breakthrough difficulty is exponential and all existing mechanics
+  (Dao Mercy, Heart Demon, Heavenly Dao Erasure at tier 8+) apply at realm
+  boundaries.
+* **Transcendence** (`/transcend`) unlocks at **Beyond Dao (16th realm, 9th
+  layer)** — a voluntary prestige loop, separate from Reincarnation. It resets
+  your realm, Qi, and Heart Demon but permanently stacks: **+15 to all five
+  core stats**, **+5,000 Qi capacity** (survives every future breakthrough),
+  **+100 flat Qi per `/cultivate`**, an exclusive **Transcendent I/II/III…**
+  title, and one cycling permanent passive per cycle (Boundless Dantian,
+  Immortal Vessel, Unyielding Dao Heart, Celestial Fortune, Ancient Soul,
+  Transcendent Physique). Your items, sect, bonds, karma, aptitudes, and Dao
+  Laws all survive the reset.
 
 ## Spiritual Aptitudes & Martial Intent Engine (v1.1.0)
 
@@ -239,7 +272,7 @@ High-tier cultivators (Nascent Soul / Tier 5+) comprehend the 5 Fundamental Laws
 
 * **Insight Sources**: Meditation (`/comprehend`), secret realm epiphanies, tribulation survivals, world boss participation, ancient texts, and sect array meditation.
 * **Milestone Unlocks**: 25% (First Vision), 50% (Technique Unlock: `Void Step`, `Temporal Cultivation`, `Sword Intent`), 75% (Dao Resonance), and 100% (Complete Mastery).
-* **Dao Fusion Prerequisites**: Reaching **100% Complete Mastery** in at least 1 Fundamental Law is required for **Dao Fusion Ascension (Tier 7→8)**.
+* **Dao Fusion Prerequisites**: Reaching **100% Complete Mastery** in at least 1 Fundamental Law is required for **Dao Fusion Ascension (Tier 8→9)**.
 
 ## Auction House & P2P Trading (Phase 4, Step 3)
 
@@ -267,7 +300,7 @@ scripts/        Automation scripts (setup_discord_server.py, migrate_sqlite_to_p
                 validate_migration.py, github_backup.py)
 templates/      Narrative fragment JSON — add files to extend flavor
 config/         Env-driven settings (default.py, postgres.py)
-tests/          pytest suite (188 tests covering balance, bonds, sects, items, alchemy, reincarnation,
+tests/          pytest suite (194 tests covering balance, bonds, sects, items, alchemy, reincarnation,
                 secret realms, world events, dao laws, auction, affinities, postgres, migrations, github backup, server layout)
 ```
 
@@ -300,12 +333,12 @@ so the slash command, the text fallback, and the standalone script can never
 drift apart. Setup is fully idempotent: run it again and it only creates what's
 missing.
 
-**What it builds (28 roles · 8 categories · 34 channels):**
+**What it builds (34 roles · 8 categories · 34 channels):**
 
 * **Roles with real permissions** — 👑 Dao Ancestor (full admin), 🛡️ Heavenly
-  Enforcer / ⚖️ Law Keeper / 🧹 Sect Steward (graduated moderation), 9 realm
-  tiers, plus self-assignable ☯️ gender, ⚔️ martial-path, 🌱 element-root, and
-  📖 culture roles.
+  Enforcer / ⚖️ Law Keeper / 🧹 Sect Steward (graduated moderation), all 16
+  realm tiers, plus self-assignable ☯️ gender, ⚔️ martial-path, 🌱 element-root,
+  and 📖 culture roles.
 * **Themed categories** — 🌄 Mortal World (welcome, rules, announcements,
   role-selection, status), 📖 Scriptures, 🌌 Cultivation Grounds, 🏯 Sects &
   Bonds, ⚔️ Calamities & Events, 🗣️ Immortal Pavilion (social + 2 voice

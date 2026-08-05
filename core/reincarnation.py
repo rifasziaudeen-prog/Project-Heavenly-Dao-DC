@@ -173,11 +173,13 @@ def execute_rebirth_payload(
     new_stats = calculate_rebirth_stats(base_mortal, legacy)
     physique_name = get_physique_name(cycle_to)
 
+    # Transcendence capacity bonus survives rebirth (it is a permanent gift)
+    transcendent_cap = int(cultivator.get("transcendence_capacity_bonus", 0) or 0)
     cultivator_updates = {
         "realm_tier": 1,
         "realm_sub_stage": 1,
         "qi_current": legacy["cycle_bonus"]["starting_qi_bonus"],
-        "qi_capacity": 1000,
+        "qi_capacity": 1000 + transcendent_cap,
         "strength": new_stats["strength"],
         "spirit": new_stats["spirit"],
         "physique": new_stats["physique"],

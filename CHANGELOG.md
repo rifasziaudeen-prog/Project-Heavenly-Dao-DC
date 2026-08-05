@@ -5,6 +5,61 @@ All notable changes to the **Heavenly Dao Engine** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] — 2026-08-05 — 16 Realms × 9 Layers + Transcendence ⛰️
+
+### Added
+
+- **16-realm cultivation ladder** (`core/math.py`) — expanded from 9 tiers × 4
+  sub-stages to **16 realms × 9 layers** (144 sub-stages), following the
+  "Next Steps" blueprint. Void Refinement (炼虚) was inserted between Soul
+  Transformation (化神) and Dao Fusion (合体); the top seven realms ascend
+  True Immortal → Golden Immortal → Primordial Chaos → Dao Ancestor → Heavenly
+  Venerable → Great Emperor → Beyond Dao (超脱). All Qi/difficulty tables
+  (`BASE_QI`, `QI_CAPACITY`, `DIFFICULTY`) were extended exponentially to tier 16.
+- **Migration 014** — remaps existing rows onto the new ladder (sub-stages
+  1→1 / 2→3 / 3→6 / 4→9; tiers 7–9 shift up one) and adds the Transcendence
+  columns (`transcendence_count`, `legacy_passives`,
+  `transcendence_capacity_bonus`, `transcendence_qi_gain_bonus`).
+- **Transcendence prestige loop** (`/transcend` in `cogs/transcendence.py` +
+  pure logic in `core/math.py`) — voluntary endgame prestige at **Beyond Dao
+  (16th realm, 9th layer)**, separate from Reincarnation. Resets realm/Qi/Heart
+  Demon while permanently stacking: **+15 to all five core stats**, **+5,000 Qi
+  capacity** (survives future breakthroughs), **+100 flat Qi per `/cultivate`**,
+  an exclusive **Transcendent I/II/III…** title, and one cycling permanent
+  passive per cycle. A confirm view guards the irreversible choice.
+- **Server blueprint roles** (`core/server_layout.py`) — realm-tier roles now
+  mirror all 16 realms (28 → 34 total roles).
+- **Item drop grades** (`core/items.py`) — breakthrough loot now scales past
+  Heaven: Immortal (tiers 12–14) and God (tiers 15–16) pills and scrolls.
+- **PostgreSQL schema** (`migrations/postgres/011_postgres_schema.sql`) — realm
+  CHECK widened to 1–16, layer CHECK to 1–9, and the four Transcendence columns
+  added for parity.
+
+### Changed
+
+- `next_realm_step` caps at the new summit (16/9); the Dao Fusion gate moved
+  from tier 7→8 to tier **8→9**; Heart Demon backlash and Heaven Panel demotes
+  now drop to layer 9 instead of sub-stage 4.
+
+### Fixed
+
+- **Transcendence capacity bonus survives erasure & rebirth** — the erasure
+  branch (`cogs/cultivation.py`) and reincarnation payload
+  (`core/reincarnation.py`) now add `transcendence_capacity_bonus` instead of
+  resetting to a plain 1000-capacity vessel.
+- **Difficulty curve guard** (`core/math.py`) — an in-realm layer can never be
+  harder than the tribulation that leaves the realm, keeping the peak (9th
+  layer) the hardest step at every tier.
+- **Transcendence confirm view hardening** — double-clicks are answered
+  instead of silently failing, and a failed DB write re-enables the buttons
+  instead of hanging the interaction.
+
+### Tests
+
+- 6 new tests: realm ladder shape, flat Qi bonus, transcendence payload,
+  passive cycling, titles, and a migration-014 remap regression. Blueprint and
+  migration counts updated. **194 tests passing.**
+
 ## [1.3.0] — 2026-08-05 — The v2 Realm: Full Server Blueprint & Reaction Roles 🏯
 
 ### Added

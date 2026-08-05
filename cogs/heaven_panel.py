@@ -235,7 +235,7 @@ class HeavenPanelCog(commands.Cog):
                 new_sub -= 1
             elif new_tier > 1:
                 new_tier -= 1
-                new_sub = 4
+                new_sub = gm.MAX_LAYER
             updates.update({"realm_tier": new_tier, "realm_sub_stage": new_sub})
         elif punishment == "heart_demon":
             updates["heart_demon_ratio"] = min(1.0, row["heart_demon_ratio"] + 0.2)

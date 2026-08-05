@@ -63,7 +63,13 @@ def roll_breakthrough_drops(realm_tier: int) -> list[dict]:
       * Technique Scroll: 8% (tier-appropriate grade)
     """
     drops: list[dict] = []
-    grade = "Mortal" if realm_tier <= 2 else ("Earth" if realm_tier <= 5 else "Heaven")
+    grade = (
+        "Mortal" if realm_tier <= 2
+        else "Earth" if realm_tier <= 5
+        else "Heaven" if realm_tier <= 11
+        else "Immortal" if realm_tier <= 14
+        else "God"
+    )
 
     # 1. Protection Charm (5%)
     if random.random() < 0.05:
@@ -90,6 +96,8 @@ def roll_breakthrough_drops(realm_tier: int) -> list[dict]:
             "Mortal": ("Qi Gathering Pill", {"type": "qi_boost", "amount": 250}),
             "Earth": ("Foundation Pill", {"type": "qi_boost", "amount": 1000}),
             "Heaven": ("Nine Revolutions Spirit Pill", {"type": "qi_boost", "amount": 5000}),
+            "Immortal": ("Immortal Awakening Pill", {"type": "qi_boost", "amount": 50000}),
+            "God": ("Dao Ancestor Pill", {"type": "qi_boost", "amount": 1000000}),
         }
         pill_name, pill_eff = pills_by_grade.get(grade, pills_by_grade["Mortal"])
         drops.append({
@@ -105,6 +113,8 @@ def roll_breakthrough_drops(realm_tier: int) -> list[dict]:
             "Mortal": ("Basic Qi Breathing Manual", {"type": "breakthrough_aid", "bonus_percent": 5}),
             "Earth": ("Nine Heavens Tribulation Manual", {"type": "breakthrough_aid", "bonus_percent": 12}),
             "Heaven": ("Immortal Sovereign Scripture", {"type": "breakthrough_aid", "bonus_percent": 25}),
+            "Immortal": ("Celestial Tribulation Scripture", {"type": "breakthrough_aid", "bonus_percent": 40}),
+            "God": ("Transcendent Dao Manual", {"type": "breakthrough_aid", "bonus_percent": 60}),
         }
         scroll_name, scroll_eff = scrolls_by_grade.get(grade, scrolls_by_grade["Mortal"])
         drops.append({
