@@ -407,6 +407,7 @@ To rebuild on a fresh server: invite the bot, run `/setup_server` once, done.
 ## Documentation
 
 * **`README.md`** — this file: setup, commands, design, roadmap
+* **`BALANCE.md`** — the tuning sheet: every game number → its exact constant and file
 * **`CHANGELOG.md`** — version history (Keep a Changelog format)
 * **`MIGRATION.md`** — SQLite → PostgreSQL path and the P0 schema decisions
 * **`DEPLOY_WISPBYTE.md`** — free 24/7 hosting walkthrough (wispbyte)
