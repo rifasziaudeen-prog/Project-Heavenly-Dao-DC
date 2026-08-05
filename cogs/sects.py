@@ -6,6 +6,8 @@ deterministic (`core/sects.py`) — no LLM, no RNG.
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -282,6 +284,17 @@ class SectsCog(commands.Cog):
                 inline=True,
             )
 
+        # Array burst status
+        now = datetime.now(timezone.utc)
+        ready_in = sects.burst_ready_in(sect.get("last_burst_at"), now)
+        burst_cost = sects.array_burst_cost(sect["array_level"])
+        burst_pulse = sects.array_burst_pulse(sect["array_level"])
+        burst_status = (
+            f"🟢 Ready · {burst_cost:,} 💎 → +{burst_pulse} Stored Qi / member"
+            if not ready_in else f"🟠 Cooling · {ready_in} left"
+        )
+        embed.add_field(name="Array Burst · 阵发", value=burst_status, inline=True)
+
         # Roster (top 15 by realm)
         roster = sorted(
             members, key=lambda m: (m["realm_tier"], m["realm_sub_stage"]), reverse=True
@@ -388,6 +401,63 @@ class SectsCog(commands.Cog):
         embed.add_field(
             name="Treasury · 灵石库",
             value=f"{sect['treasury_stones'] - cost:,} 💎",
+            inline=True,
+        )
+        await interaction.response.send_message(embed=embed)
+
+    # ======================================================== /sect array_burst
+    @app_commands.command(
+        name="sect_array_burst",
+        description="Trigger the array: pulses Stored Qi to every member (Patriarch only)",
+    )
+    async def sect_array_burst(self, interaction: discord.Interaction) -> None:
+        me = await self._cultivator(interaction.user.id)
+        if not me or not me["sect_id"]:
+            await self._refuse(interaction, "You must belong to a sect.")
+            return
+        sect = await self._sect_of(me)
+        if not sect or sect["patriarch_id"] != me["id"]:
+            await self._refuse(interaction, "Only the Patriarch may trigger the array.")
+            return
+
+        now = datetime.now(timezone.utc)
+        ok, reason = sects.validate_burst(
+            sect["array_level"], sect["treasury_stones"], sect.get("last_burst_at"), now
+        )
+        if not ok:
+            await self._refuse(interaction, reason)
+            return
+
+        cost = sects.array_burst_cost(sect["array_level"])
+        pulse = sects.array_burst_pulse(sect["array_level"])
+        await self.bot.db.execute(
+            "UPDATE sects SET treasury_stones=treasury_stones-?, last_burst_at=? WHERE id=?",
+            (cost, now.isoformat(), sect["id"]),
+        )
+        await self.bot.db.execute(
+            "UPDATE cultivators SET stored_qi_current="
+            " MIN(stored_qi_max+stored_qi_max_bonus, stored_qi_current+?) WHERE sect_id=?",
+            (pulse, sect["id"]),
+        )
+        members = await sect_members(self.bot.db, sect["id"])
+
+        embed = discord.Embed(
+            title="🔆 Array Burst · 阵法爆发",
+            description=(
+                f"**{sect['name']}**'s array flares with sect-wide power! "
+                f"**+{pulse} Stored Qi** floods into **{len(members)} disciples**."
+            ),
+            color=ui.PURPLE,
+        )
+        embed.add_field(name="Cost · 消耗", value=f"{cost:,} 💎", inline=True)
+        embed.add_field(
+            name="Treasury · 灵石库",
+            value=f"{sect['treasury_stones'] - cost:,} 💎",
+            inline=True,
+        )
+        embed.add_field(
+            name="Next Burst",
+            value=f"~{sects.ARRAY_BURST_COOLDOWN.total_seconds() / 3600:g} hours",
             inline=True,
         )
         await interaction.response.send_message(embed=embed)

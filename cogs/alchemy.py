@@ -409,7 +409,7 @@ class AlchemyCog(commands.Cog):
             res_embed.description = (
                 "The violent flames erupt! The cauldron shatters into ash!\n"
                 f"Lost **{ui.format_qi(qi_loss, lang)}** and gained "
-                f"**{gm.heart_demon_delta_str(0.05)} Heart Demon Points**."
+                f"**{gm.heart_demon_delta_label(0.05)}**."
             )
             res_embed.color = ui.CRIMSON
 
@@ -421,7 +421,7 @@ class AlchemyCog(commands.Cog):
             )
             res_embed.description = (
                 "The medicinal essence burns to dark dross. Refinement failed.\n"
-                f"Gained **{gm.heart_demon_delta_str(0.01)} Heart Demon Points** from frustration."
+                f"Gained **{gm.heart_demon_delta_label(0.01)}** from frustration."
             )
             res_embed.color = ui.OBSIDIAN
 

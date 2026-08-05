@@ -5,7 +5,30 @@ All notable changes to the **Heavenly Dao Engine** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.9.0] — 2026-08-05 — Heart Demon Points (Part 5 · Commit 1) 😈
+## [1.10.0] — 2026-08-05 — Sect Array Burst (Part 5 · Commit 2) 🔆
+
+### Added
+
+- **`/sect_array_burst` (Patriarch only)** — spend **flat treasury stones** to
+  make the sect array burst and pulse **Stored Qi to every member**.
+  - Level-1 array: **500 💎 → +30 Stored Qi** per disciple; each array level
+    past 1 adds a flat +250 💎 cost and +10 Stored Qi pulse (level 7: 2,000 💎
+    → +90 Stored Qi). Pure hardcoded tables in `core/sects.py` — no
+    percentages.
+  - **6-hour cooldown** enforced by a new `sects.last_burst_at` column
+    (migration 019, applied to the live DB).
+  - `/sect_info` dashboard now shows burst status: 🟢 Ready (cost + pulse) or
+    🟠 Cooling (time remaining).
+- **Tests** — burst cost/pulse scaling, treasury validation, cooldown logic,
+  `burst_ready_in()` and the `heart_demon_delta_label()` pluralisation helper
+  (suite now **228 tests**).
+
+### Changed
+
+- The pulse caps at each member's Stored Qi max (`MIN(stored_qi_max +
+  stored_qi_max_bonus, ...)`), so it stacks with pills and passives but never
+  overflows.
+
 
 ### Added
 

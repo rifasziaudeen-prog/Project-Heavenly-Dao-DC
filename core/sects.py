@@ -8,6 +8,7 @@ upgrades.
 from __future__ import annotations
 
 import math
+from datetime import datetime, timedelta, timezone
 
 # ---------------------------------------------------------------------------
 # Rank hierarchy (index 0 = lowest, 4 = highest)
@@ -36,6 +37,16 @@ SECT_MAX_NAME_LENGTH = 40
 SECT_MAX_ARRAY_LEVEL = 7         # level 7 = +56% capped to ARRAY_BONUS_CAP (+50%)
 ARRAY_UPGRADE_BASE_COST = 500    # cost = int(500 * 1.5^(level-1))
 SPIRIT_STONES_PER_BREAKTHROUGH = 10  # earned on successful breakthrough
+
+# Array burst (Part 5 · Commit 2) — flat, hardcoded, easy to re-tune.
+# The Patriarch spends treasury stones to pulse Stored Qi to every member;
+# a level-1 array costs 500 stones for a +30 Stored Qi pulse. Each array
+# level past 1 adds a flat surcharge and a bigger pulse.
+ARRAY_BURST_BASE_COST = 500       # level-1 burst cost (spirit stones)
+ARRAY_BURST_COST_PER_LEVEL = 250  # +250 per array level beyond 1
+ARRAY_BURST_BASE_PULSE = 30       # Stored Qi per member at level 1
+ARRAY_BURST_PULSE_PER_LEVEL = 10  # +10 Stored Qi per array level beyond 1
+ARRAY_BURST_COOLDOWN = timedelta(hours=6)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -83,6 +94,68 @@ def array_upgrade_cost(current_level: int) -> int:
 def array_bonus_pct(level: int) -> float:
     """Qi bonus percentage for display (matches core/math.py ARRAY_BONUS_CAP)."""
     return min(level * 0.08, 0.50) * 100.0
+
+
+def array_burst_cost(array_level: int) -> int:
+    """Flat treasury cost (spirit stones) to trigger a burst at this level.
+
+    Level 1 costs 500, level 4 costs 1,250, level 7 costs 2,000 — no
+    percentages, one plain table.
+    """
+    return ARRAY_BURST_BASE_COST + ARRAY_BURST_COST_PER_LEVEL * max(0, array_level - 1)
+
+
+def array_burst_pulse(array_level: int) -> int:
+    """Stored Qi granted to every sect member when the array bursts."""
+    return ARRAY_BURST_BASE_PULSE + ARRAY_BURST_PULSE_PER_LEVEL * max(0, array_level - 1)
+
+
+def _parse_burst_ts(last_burst_at: str) -> datetime | None:
+    """Parse the stored burst timestamp, assuming UTC when no tz is given."""
+    try:
+        last = datetime.fromisoformat(last_burst_at)
+    except ValueError:
+        return None
+    if last.tzinfo is None:
+        last = last.replace(tzinfo=timezone.utc)
+    return last
+
+
+def burst_ready_in(last_burst_at: str | None, now: datetime) -> str | None:
+    """Human 'ready in 3h 12m' text for the dashboard, or None if ready now."""
+    if not last_burst_at:
+        return None
+    last = _parse_burst_ts(last_burst_at)
+    if last is None:
+        return None
+    remaining = ARRAY_BURST_COOLDOWN - (now - last)
+    if remaining <= timedelta(0):
+        return None
+    hours = int(remaining.total_seconds() // 3600)
+    mins = int((remaining.total_seconds() % 3600) // 60)
+    return f"{hours}h {mins}m"
+
+
+def validate_burst(
+    array_level: int,
+    treasury: int,
+    last_burst_at: str | None,
+    now: datetime,
+) -> tuple[bool, str]:
+    """Can the array burst right now? Checks treasury and the 6h cooldown."""
+    cost = array_burst_cost(array_level)
+    if treasury < cost:
+        return False, (
+            f"The treasury holds only **{treasury:,}** 💎 — a burst costs "
+            f"**{cost:,} 💎**. Donate more spirit stones first."
+        )
+    ready = burst_ready_in(last_burst_at, now)
+    if ready:
+        return False, (
+            "The array is still resonating from the last burst — it "
+            f"needs ~**{ready}** to recover."
+        )
+    return True, "valid"
 
 
 # ---------------------------------------------------------------------------

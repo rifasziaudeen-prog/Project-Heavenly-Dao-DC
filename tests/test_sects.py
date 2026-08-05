@@ -199,3 +199,52 @@ def test_validate_expel():
     # Can't expel higher rank
     ok, _ = sects.validate_expel(outer, patriarch)
     assert ok is False
+
+
+# ---------------------------------------------------------------------------
+# Array burst (Part 5 · Commit 2) — flat costs, flat pulses, 6h cooldown
+# ---------------------------------------------------------------------------
+
+def test_array_burst_cost():
+    assert sects.array_burst_cost(1) == 500
+    assert sects.array_burst_cost(2) == 750
+    assert sects.array_burst_cost(4) == 1250
+    assert sects.array_burst_cost(7) == 2000
+
+
+def test_array_burst_pulse():
+    assert sects.array_burst_pulse(1) == 30
+    assert sects.array_burst_pulse(4) == 60
+    assert sects.array_burst_pulse(7) == 90
+
+
+def test_validate_burst_treasury():
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc)
+    ok, _ = sects.validate_burst(1, 600, None, now)
+    assert ok
+    ok, reason = sects.validate_burst(1, 100, None, now)
+    assert not ok and "500" in reason
+
+
+def test_validate_burst_cooldown():
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    # Burst 2h ago → still cooling
+    ok, reason = sects.validate_burst(1, 600, (now - timedelta(hours=2)).isoformat(), now)
+    assert not ok and "cool" not in reason and "recover" in reason
+    # Burst 7h ago → cooldown (6h) expired, ready again
+    ok, _ = sects.validate_burst(1, 600, (now - timedelta(hours=7)).isoformat(), now)
+    assert ok
+
+
+def test_burst_ready_in():
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+    assert sects.burst_ready_in(None, now) is None
+    assert sects.burst_ready_in((now - timedelta(hours=2)).isoformat(), now) is not None
+    assert sects.burst_ready_in((now - timedelta(hours=7)).isoformat(), now) is None
+    assert sects.burst_ready_in("not-a-date", now) is None

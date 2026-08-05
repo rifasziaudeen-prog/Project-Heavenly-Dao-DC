@@ -89,6 +89,7 @@ enabled (required for passive Qi) — see `.env.example` for the full walkthroug
 | `/sect_info [name]` | View sect dashboard (members, array level, treasury, roster) |
 | `/sect_donate <amount>` | Donate spirit stones to the sect treasury |
 | `/sect_upgrade_array` | **Patriarch.** Upgrade the defensive array using treasury funds |
+| `/sect_array_burst` | **Patriarch.** Trigger the array — flat treasury cost, pulses +Stored Qi to every member (6h cooldown) |
 | `/sect_promote @user` | **Patriarch.** Promote a member one rank step |
 | `/sect_demote @user` | **Patriarch.** Demote a member one rank step |
 | `/sect_expel @user` | **Patriarch.** Expel a lower-ranked member from the sect |
@@ -240,6 +241,11 @@ treasuries, and defensive array upgrades.
 * **Array upgrade economy**: array levels (1–7) provide breakthrough success
   bonuses (up to +56%). Upgrades are funded from the sect treasury with exponential
   cost `int(500 × 1.5^(level-1))`.
+* **Array burst (v1.10.0)**: the Patriarch can spend **flat treasury stones** to
+  make the array burst — every member instantly gains Stored Qi. Level 1:
+  **500 💎 → +30 Stored Qi** per member; each array level past 1 adds +250 💎
+  cost and +10 Stored Qi pulse. Cooldown **6 hours** (tracked by `last_burst_at`,
+  visible on `/sect_info`). No percentages — one plain table in `core/sects.py`.
 * **Spirit stone wallet**: players earn **+10 spirit stones** per successful
   breakthrough. Stones can be donated to the sect treasury via `/sect_donate`.
 
@@ -333,7 +339,7 @@ scripts/        Automation scripts (setup_discord_server.py, migrate_sqlite_to_p
                 validate_migration.py, github_backup.py)
 templates/      Narrative fragment JSON — add files to extend flavor
 config/         Env-driven settings (default.py, postgres.py)
-tests/          pytest suite (222 tests covering balance, bonds, sects, items, alchemy, reincarnation,
+tests/          pytest suite (228 tests covering balance, bonds, sects, items, alchemy, reincarnation,
                 secret realms, world events, dao laws, auction, affinities, combat, global players,
                 postgres, migrations, github backup, server layout)
 ```
@@ -505,6 +511,7 @@ hidden multipliers or percentage stacking).
 * **v1.7.0:** Contendance combat — techniques, duels, PvE battles, Dao Heart, burn-to-continue *(Completed)*
 * **v1.8.0:** Global player profiles *(Completed)* — see the [dedicated section](#global-player-profiles-v180)
 * **v1.9.0:** Heart Demon Points — visible 0–20 scale over the internal ratio *(Completed)* — see the [dedicated section](#heart-demon-points--心魔-v190)
+* **v1.10.0:** Sect array burst — Patriarch-triggered Stored Qi pulse for the whole sect *(Completed)* — see the [sect section](#sects--spirit-stones-economy-phase-2)
 
 ---
 

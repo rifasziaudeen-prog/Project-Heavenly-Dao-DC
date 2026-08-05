@@ -221,7 +221,7 @@ class ItemsCog(commands.Cog):
                 "UPDATE cultivators SET heart_demon_ratio = MAX(0.0, heart_demon_ratio - ?) WHERE id=?",
                 (amount, row["id"]),
             )
-            result_msg += f" Purged **{gm.heart_demon_points(amount)} Heart Demon Points**."
+            result_msg += f" Purged **{amount * gm.HD_POINTS_MAX:g} Heart Demon Points**."
 
         elif etype == "protection":
             ctype = eff.get("charm_type", "karmic_shield")

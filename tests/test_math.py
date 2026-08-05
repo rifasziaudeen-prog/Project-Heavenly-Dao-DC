@@ -256,3 +256,9 @@ def test_heart_demon_delta_str():
     assert gm.heart_demon_delta_str(0.02) == "+0.4"
     assert gm.heart_demon_delta_str(-0.2) == "-4"
     assert gm.heart_demon_delta_str(0.0) == "+0"
+
+
+def test_heart_demon_delta_label():
+    assert gm.heart_demon_delta_label(0.05) == "+1 Heart Demon Point"
+    assert gm.heart_demon_delta_label(0.01) == "+0.2 Heart Demon Points"
+    assert gm.heart_demon_delta_label(-0.2) == "-4 Heart Demon Points"

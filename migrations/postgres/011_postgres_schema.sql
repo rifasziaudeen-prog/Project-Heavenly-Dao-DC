@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS sects (
     patriarch_id       INTEGER REFERENCES cultivators(id) ON DELETE SET NULL,
     array_level        INTEGER NOT NULL DEFAULT 1 CHECK (array_level BETWEEN 1 AND 5),
     treasury_stones    INTEGER NOT NULL DEFAULT 0 CHECK (treasury_stones >= 0),
+    last_burst_at      TIMESTAMPTZ,                -- array burst cooldown (019)
     created_at         TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_sects_guild_name UNIQUE (guild_id, name)
 );

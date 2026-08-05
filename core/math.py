@@ -289,6 +289,13 @@ def heart_demon_delta_str(delta_ratio: float) -> str:
     return f"{sign}{pts:g}"
 
 
+def heart_demon_delta_label(delta_ratio: float) -> str:
+    """Signed delta with a correctly pluralised unit, e.g. '+1 Heart Demon Point'."""
+    s = heart_demon_delta_str(delta_ratio)
+    unit = "Point" if s in ("+1", "-1") else "Points"
+    return f"{s} Heart Demon {unit}"
+
+
 # ---------------------------------------------------------------------------
 # Heavenly Dao Erasure resolution (pure, unit-testable)
 # ---------------------------------------------------------------------------
