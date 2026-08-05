@@ -379,6 +379,20 @@ class HeavenlyDaoBot(commands.Bot):
     async def _before_market_expiry(self) -> None:
         await self.wait_until_ready()
 
+    # Shutdown ----------------------------------------------------------------
+    async def close(self) -> None:
+        """Graceful shutdown — release the SQLite connection so the process can
+        actually exit. aiosqlite's worker thread is non-daemon, so an unclosed
+        connection kept the bot alive (and heavenly_dao.db locked) forever
+        after Ctrl+C."""
+        try:
+            await super().close()
+        finally:
+            try:
+                await self.db.close()
+            except Exception:
+                pass
+
     # Small helpers used by cogs ----------------------------------------------
     async def add_flag(self, guild_id: int, user_id: int, flag_type: str, reason: str) -> None:
         await anti_cheat.flag(self.db, guild_id, user_id, flag_type, reason)

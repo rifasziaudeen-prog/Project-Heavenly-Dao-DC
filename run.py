@@ -15,7 +15,17 @@ async def main() -> None:
             "DISCORD_TOKEN is not set. Copy .env.example to .env and add your bot token."
         )
     bot = HeavenlyDaoBot()
-    await bot.start(config.DISCORD_TOKEN, reconnect=True)
+    try:
+        await bot.start(config.DISCORD_TOKEN, reconnect=True)
+    finally:
+        # Graceful shutdown: closing the bot also closes the SQLite connection,
+        # which releases aiosqlite's worker thread and checkpoints the WAL.
+        # Without this, Ctrl+C left the process alive forever, holding
+        # heavenly_dao.db locked so the bot could not be restarted.
+        try:
+            await bot.close()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

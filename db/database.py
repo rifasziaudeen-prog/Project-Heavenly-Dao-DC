@@ -13,11 +13,29 @@ from __future__ import annotations
 
 import re
 import sqlite3
+import threading
 from pathlib import Path
 
 import aiosqlite
+import aiosqlite.core as _aiosqlite_core
 
 from config import default as config
+
+
+class _DaemonAiosqliteThread(threading.Thread):
+    """aiosqlite spawns its per-connection worker thread NON-daemon, which keeps
+    the whole process alive forever whenever a connection is left unclosed
+    (Ctrl+C on the bot, or a test that failed before its teardown). Daemonizing
+    the thread means an unclean exit can never wedge the process — SQLite's own
+    WAL/journal crash-recovery handles any in-flight write on next open.
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        kwargs.setdefault("daemon", True)
+        super().__init__(*args, **kwargs)
+
+
+_aiosqlite_core.Thread = _DaemonAiosqliteThread
 
 _SCHEMA_MIGRATIONS = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -41,6 +59,11 @@ class Database:
         await self.conn.execute("PRAGMA journal_mode=WAL")
         await self.conn.execute("PRAGMA foreign_keys=ON")
         await self.conn.execute("PRAGMA busy_timeout=5000")
+        await self.conn.commit()
+        # Fold any uncheckpointed WAL (from a previous ungraceful shutdown)
+        # back into the main database file. Safe: TRUNCATE returns busy (with
+        # the busy_timeout) if another connection holds the database.
+        await self.conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         await self.conn.commit()
 
     async def close(self) -> None:

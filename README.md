@@ -415,6 +415,14 @@ To rebuild on a fresh server: invite the bot, run `/setup_server` once, done.
   `.env.example` yet.
 * **Techniques not appearing after learning** — the bot syncs the catalog at
   startup; `/learn` only works after a restart that applied migration 017.
+* **Bot hangs on Ctrl+C / can't restart** — fixed in v1.8.1: shutdown now
+  closes the SQLite connection (and the aiosqlite worker thread is daemonized),
+  so Ctrl+C exits cleanly instead of leaving a zombie process holding
+  `heavenly_dao.db` locked. If you still have an old stuck process, kill it
+  with `taskkill /F /PID <pid>` (find it via `tasklist | findstr python`).
+* **Players report `/register` failing** — usually the same stuck-process DB
+  lock (`database is locked`); restart the bot. Register itself is verified
+  working.
 * **Database keeps growing** — expected: `qi_buffer` is an append-only audit
   log. It gets monthly partitioning in the PostgreSQL migration.
 

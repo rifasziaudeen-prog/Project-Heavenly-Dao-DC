@@ -80,6 +80,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `cultivators.last_active_guild_id` column + `idx_cultivators_user` unique
   index (PostgreSQL schema updated to match: `UNIQUE(user_id)`).
 
+## [1.8.1] — 2026-08-05 — Graceful Shutdown Fix 🛑
+
+### Fixed
+
+- **Ctrl+C no longer leaves the bot stuck.** aiosqlite spawns its per-connection
+  worker thread non-daemon, so an unclosed connection kept the process alive
+  forever — and kept `heavenly_dao.db` locked, which made `/register` fail with
+  `database is locked` for players (and made the bot impossible to restart).
+  Three-layer fix:
+  - `run.py` now closes the bot (and its SQLite connection) in a `finally`
+    block on shutdown, checkpointing the WAL cleanly.
+  - `HeavenlyDaoBot.close()` releases the database connection.
+  - `db/database.py` daemonizes the aiosqlite worker thread, so even an
+    unclean exit (or a failed test run) can never wedge the process — SQLite's
+    own crash recovery handles any in-flight write on next open.
+- **WAL hygiene** — `Database.connect()` now runs
+  `PRAGMA wal_checkpoint(TRUNCATE)`, folding any uncheckpointed WAL from a
+  previous ungraceful shutdown back into the main database file (the live DB
+  had 4.1 MB of player data sitting only in the WAL; now checkpointed and
+  safe).
+- **Test runs now exit even on failure** — the same non-daemon thread was what
+  made every failing pytest run look frozen (tests that assert-before-close
+  leaked connections). Failures are now fast and visible.
+
 ## [1.6.0] — 2026-08-05 — Dao Law Ranks + Aptitude Learning Speed 📜
 
 ### Added
