@@ -5,6 +5,63 @@ All notable changes to the **Heavenly Dao Engine** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.1] — 2026-08-05 — Graceful Shutdown Fix 🛑
+
+### Fixed
+
+- **Ctrl+C no longer leaves the bot stuck.** aiosqlite spawns its per-connection
+  worker thread non-daemon, so an unclosed connection kept the process alive
+  forever — and kept `heavenly_dao.db` locked, which made `/register` fail with
+  `database is locked` for players (and made the bot impossible to restart).
+  Three-layer fix:
+  - `run.py` now closes the bot (and its SQLite connection) in a `finally`
+    block on shutdown, checkpointing the WAL cleanly.
+  - `HeavenlyDaoBot.close()` releases the database connection.
+  - `db/database.py` daemonizes the aiosqlite worker thread, so even an
+    unclean exit (or a failed test run) can never wedge the process — SQLite's
+    own crash recovery handles any in-flight write on next open.
+- **WAL hygiene** — `Database.connect()` now runs
+  `PRAGMA wal_checkpoint(TRUNCATE)`, folding any uncheckpointed WAL from a
+  previous ungraceful shutdown back into the main database file (the live DB
+  had 4.1 MB of player data sitting only in the WAL; now checkpointed and
+  safe).
+- **Test runs now exit even on failure** — the same non-daemon thread was what
+  made every failing pytest run look frozen (tests that assert-before-close
+  leaked connections). Failures are now fast and visible.
+
+## [1.8.0] — 2026-08-05 — Global Player Profiles 🌍
+
+### Changed
+
+- **Players are now GLOBAL** — migration 018 replaces the per-guild
+  `UNIQUE(guild_id, user_id)` wall with `UNIQUE(user_id)`: one cultivation life
+  per Discord user, identical across every server the bot serves.
+- **Merge keep-the-strongest** — any pre-existing duplicate (the same user
+  registered in several servers) is merged into the strongest row (highest
+  realm, then layer, then dantian Qi, then oldest id), and every player-owned
+  row — items, companions, protection charms, qi history, breakthrough logs,
+  Dao Laws, techniques, alchemy attempts, reincarnation lives, secret realm
+  runs, event participation, market listings & bids, trade offers, combat
+  history, bonds (collapsed to one per pair), plus soft references (master,
+  sect patriarch, former companion owner) — is reparented onto the survivor.
+- **Per-server leaderboards via `last_active_guild_id`** — every command
+  refreshes the player's last-active server; `/leaderboard` and the Heaven
+  Panel rank the cultivators who last played in *that* server, showing global
+  progress. New indexes replace the old per-guild ones.
+- **The world stays per-server** — guild config, world events, qi audit logs,
+  anti-cheat flags, and combat logs keep their guild dimension.
+- **Global Groq quotas** — rate limits are per user, not per (user, guild).
+- **`/give`, `/profile`, `/register` and all player lookups** now fetch by
+  `user_id` alone; cogs' `_cultivator(guild_id, user_id)` helpers became
+  `_cultivator(user_id)`.
+- **Fixed**: migration 018 initially referenced `world_events.created_by`
+  (a PostgreSQL-only column) — removed so SQLite applies cleanly.
+
+### Added
+
+- `cultivators.last_active_guild_id` column + `idx_cultivators_user` unique
+  index (PostgreSQL schema updated to match: `UNIQUE(user_id)`).
+
 ## [1.7.0] — 2026-08-05 — Contendance Combat Engine ⚔️
 
 ### Added
@@ -46,63 +103,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Stall guard**: duels cap at **30 rounds**; a fight that never lands a
   killing blow (e.g. pill vs pill) is decided by remaining HP, or declared a
   draw with wagers returned.
-
-## [1.8.0] — 2026-08-05 — Global Player Profiles 🌍
-
-### Changed
-
-- **Players are now GLOBAL** — migration 018 replaces the per-guild
-  `UNIQUE(guild_id, user_id)` wall with `UNIQUE(user_id)`: one cultivation life
-  per Discord user, identical across every server the bot serves.
-- **Merge keep-the-strongest** — any pre-existing duplicate (the same user
-  registered in several servers) is merged into the strongest row (highest
-  realm, then layer, then dantian Qi, then oldest id), and every player-owned
-  row — items, companions, protection charms, qi history, breakthrough logs,
-  Dao Laws, techniques, alchemy attempts, reincarnation lives, secret realm
-  runs, event participation, market listings & bids, trade offers, combat
-  history, bonds (collapsed to one per pair), plus soft references (master,
-  sect patriarch, former companion owner) — is reparented onto the survivor.
-- **Per-server leaderboards via `last_active_guild_id`** — every command
-  refreshes the player's last-active server; `/leaderboard` and the Heaven
-  Panel rank the cultivators who last played in *that* server, showing global
-  progress. New indexes replace the old per-guild ones.
-- **The world stays per-server** — guild config, world events, qi audit logs,
-  anti-cheat flags, and combat logs keep their guild dimension.
-- **Global Groq quotas** — rate limits are per user, not per (user, guild).
-- **`/give`, `/profile`, `/register` and all player lookups** now fetch by
-  `user_id` alone; cogs' `_cultivator(guild_id, user_id)` helpers became
-  `_cultivator(user_id)`.
-- **Fixed**: migration 018 initially referenced `world_events.created_by`
-  (a PostgreSQL-only column) — removed so SQLite applies cleanly.
-
-### Added
-
-- `cultivators.last_active_guild_id` column + `idx_cultivators_user` unique
-  index (PostgreSQL schema updated to match: `UNIQUE(user_id)`).
-
-## [1.8.1] — 2026-08-05 — Graceful Shutdown Fix 🛑
-
-### Fixed
-
-- **Ctrl+C no longer leaves the bot stuck.** aiosqlite spawns its per-connection
-  worker thread non-daemon, so an unclosed connection kept the process alive
-  forever — and kept `heavenly_dao.db` locked, which made `/register` fail with
-  `database is locked` for players (and made the bot impossible to restart).
-  Three-layer fix:
-  - `run.py` now closes the bot (and its SQLite connection) in a `finally`
-    block on shutdown, checkpointing the WAL cleanly.
-  - `HeavenlyDaoBot.close()` releases the database connection.
-  - `db/database.py` daemonizes the aiosqlite worker thread, so even an
-    unclean exit (or a failed test run) can never wedge the process — SQLite's
-    own crash recovery handles any in-flight write on next open.
-- **WAL hygiene** — `Database.connect()` now runs
-  `PRAGMA wal_checkpoint(TRUNCATE)`, folding any uncheckpointed WAL from a
-  previous ungraceful shutdown back into the main database file (the live DB
-  had 4.1 MB of player data sitting only in the WAL; now checkpointed and
-  safe).
-- **Test runs now exit even on failure** — the same non-daemon thread was what
-  made every failing pytest run look frozen (tests that assert-before-close
-  leaked connections). Failures are now fast and visible.
 
 ## [1.6.0] — 2026-08-05 — Dao Law Ranks + Aptitude Learning Speed 📜
 
