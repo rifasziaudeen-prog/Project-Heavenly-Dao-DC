@@ -5,6 +5,34 @@ All notable changes to the **Heavenly Dao Engine** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.0] — 2026-08-06 — Hot-Path Caching · 风雷快线 ⚡
+
+### Added
+
+- **Guild-config cache** (`HeavenlyDaoBot._guild_configs`) — the per-guild
+  config is now read from memory after the first lookup. `/dao_config` and
+  server setup invalidate it on write; a 60s TTL self-heals anything written
+  out-of-band. Every cog calls `_guild_config` on nearly every command, so
+  this speeds up the whole bot, not just chat Qi.
+- **Sect array level + active companions caches** (60s TTL) — the two
+  remaining per-message lookups on the passive-Qi path.
+- The passive-Qi hot path drops from **~5 DB round-trips per message to 2**
+  (the cultivator row + the quota write — both must stay fresh for
+  anti-abuse). Proven by a query-counting integration test.
+- The first-ever `_guild_config` insert for a guild now tolerates a
+  concurrent first call (IntegrityError → refetch instead of crashing).
+
+### Changed
+
+- Cached reads return **copies** — callers can never mutate the cache.
+- `CACHE_TTL_SECONDS` (60s) added to `config/default.py`.
+
+### Tests
+
+- `tests/test_perf_caches.py` (9 new): warm-cache zero-query guarantees,
+  copy-not-reference safety, invalidate-on-write, TTL expiry self-heal, and
+  two end-to-end passive-Qi runs asserting exactly 1 read + 1 write.
+
 ## [1.15.0] — 2026-08-06 — Crash-Safe Economy · 铁律账本 🛡️
 
 ### Added

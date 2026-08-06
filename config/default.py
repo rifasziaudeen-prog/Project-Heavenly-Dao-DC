@@ -56,6 +56,12 @@ GROQ_GLOBAL_DAILY_LIMIT: int = 100
 # --- Gameplay tuning (Phase 1) ----------------------------------------------
 # /cultivate cooldown is realm-scaled in core/math.py (cultivate_cooldown_seconds)
 MESSAGE_QI_HOURLY_CAP: int = 25                   # counted messages / player / hour
+
+# --- In-memory hot-path caches (v1.16.0) -------------------------------------
+CACHE_TTL_SECONDS: float = 60.0   # TTL for guild config / sect array level /
+                                  # active-companion caches (invalidate-on-write
+                                  # covers the known writers; TTL self-heals
+                                  # anything out-of-band)
 MESSAGE_MIN_LENGTH: int = 5                       # ignore <5 char messages
 MESSAGE_REPEAT_WINDOW_SECONDS: int = 60           # ignore identical repeat within 60s
 QI_BUFFER_FLUSH_SECONDS: int = 60                 # memory buffer -> DB flush cadence

@@ -12,7 +12,7 @@ from bot import utils as ui
 from config import default as config
 from core import affinities as aff
 from core import dao_bonds, items as core_items, math as gm, sects
-from db.queries import active_companions, get_or_create_cultivator, sect_array_level
+from db.queries import get_or_create_cultivator
 
 _STAT_LABELS = {
     "physique": "体质 Physique",
@@ -350,9 +350,9 @@ class CultivationCog(commands.Cog):
 
         gain = gm.calculate_qi_gain(
             row["realm_tier"], row["comprehension"], source="cultivate",
-            sect_array_level=await sect_array_level(self.bot.db, row["sect_id"]),
+            sect_array_level=await self.bot.sect_array_level(row["sect_id"]),
             has_sect=bool(row["sect_id"]),
-            active_companions=await active_companions(self.bot.db, row["id"]),
+            active_companions=await self.bot.active_companions(row["id"]),
             flat_bonus=row.get("transcendence_qi_gain_bonus", 0),
         )
         await self.bot.db.execute(
@@ -566,7 +566,7 @@ class CultivationCog(commands.Cog):
             heart_demon_ratio=row["heart_demon_ratio"],
             karma_points=row["karma_points"],
             has_sect=bool(row["sect_id"]),
-            sect_array_level=await sect_array_level(self.bot.db, row["sect_id"]),
+            sect_array_level=await self.bot.sect_array_level(row["sect_id"]),
             failure_streak=row["failure_streak"],
             rage_bonus=rage + (eq_bonuses["breakthrough_aid"] / 100.0) + row.get("reincarnation_breakthrough_bonus", 0.0),
         )

@@ -98,7 +98,10 @@ enabled (required for passive Qi) — see `.env.example` for the full walkthroug
 
 Passive Qi: every countable chat message awards ~15% of a `/cultivate`. Cap of
 **25 messages/hour/player**; messages under 5 chars, duplicates within 60s, and
-messages in disabled (spam) channels don't count.
+messages in disabled (spam) channels don't count. The hot path is cached
+(v1.16.0): guild config, sect array level, and active companions are served
+from memory, so a chat message costs **2 DB round-trips** (cultivator row +
+quota write) instead of ~5.
 
 ## Newbie Foundations · 入门根基 (v1.14.0)
 
@@ -405,7 +408,7 @@ scripts/        Automation scripts (setup_discord_server.py, migrate_sqlite_to_p
                 validate_migration.py, github_backup.py)
 templates/      Narrative fragment JSON — add files to extend flavor
 config/         Env-driven settings (default.py, postgres.py)
-tests/          pytest suite (277 tests covering balance, bonds, sects, items, alchemy, reincarnation,
+tests/          pytest suite (286 tests covering balance, bonds, sects, items, alchemy, reincarnation,
                 secret realms, world events, dao laws, auction, affinities, combat, global players,
                 postgres, migrations, github backup, server layout)
 ```
@@ -603,6 +606,7 @@ hidden multipliers or percentage stacking).
 * **v1.13.0:** Artifact active abilities — spirit-energy weapon strikes with time/stone recharge *(Completed)* — see the [dedicated section](#artifact-active-abilities--法宝-v1130)
 * **v1.14.0:** Newbie Foundations — front-loaded Qi curve, `/daily` tribute, `/register` starter kit, register trap fixed *(Completed)* — see the [dedicated section](#newbie-foundations--入门根基-v1140)
 * **v1.15.0:** Crash-Safe Economy — `db.transaction()` atomic write blocks across auction, combat, sects & reincarnation *(Completed)* — see the [dedicated section](#crash-safe-economy--铁律账本-v1150)
+* **v1.16.0:** Hot-Path Caching — in-memory guild-config / sect-array / companion caches cut passive Qi to 2 DB round-trips per message *(Completed)*
 
 ---
 

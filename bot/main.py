@@ -10,6 +10,8 @@ Background tasks (all start on ready):
 from __future__ import annotations
 
 import logging
+import sqlite3
+import time
 from collections import defaultdict
 
 import discord
@@ -49,6 +51,12 @@ class HeavenlyDaoBot(commands.Bot):
         self.qi_buffer: list[dict] = []
         self._last_msg: dict[tuple[int, int], tuple[str, float]] = {}
         self._deny_counts: dict[tuple[int, int], tuple[int, str]] = {}
+        # Hot-path caches (v1.16.0): guild config (invalidate-on-write + TTL),
+        # sect array level, and active companions (TTL). Each entry is
+        # (timestamp, value) — see _cache_get.
+        self._guild_configs: dict[int, tuple[float, dict]] = {}
+        self._sect_array_levels: dict[int, tuple[float, int]] = {}
+        self._companion_cache: dict[int, tuple[float, list[dict]]] = {}
         self._started = False
 
     # ------------------------------------------------------------------ setup
@@ -132,33 +140,88 @@ class HeavenlyDaoBot(commands.Bot):
                 await self._send_awakening(guild, channel)
 
     # ------------------------------------------------------------ config helper
+    @staticmethod
+    def _cache_get(cache: dict, key):
+        """Return a fresh cache entry or None (expired entries are dropped)."""
+        entry = cache.get(key)
+        if entry is None:
+            return None
+        ts, value = entry
+        if time.monotonic() - ts > config.CACHE_TTL_SECONDS:
+            cache.pop(key, None)
+            return None
+        return value
+
+    def _invalidate_guild_config(self, guild_id: int) -> None:
+        self._guild_configs.pop(guild_id, None)
+
     async def _guild_config(self, guild_id: int) -> dict:
+        cached = self._cache_get(self._guild_configs, guild_id)
+        if cached is not None:
+            return dict(cached)   # copy — callers must never mutate the cache
+
         row = await self.db.fetchone(
             "SELECT * FROM guild_config WHERE guild_id=?", (guild_id,)
         )
         if row:
-            return dict(row)
-        defaults = {
-            "guild_id": guild_id,
-            "qi_enabled_channels": "[]",
-            "qi_disabled_channels": "[]",
-            "admin_role_id": None,
-            "admin_user_id": None,
-            "xianxia_terms_language": "bilingual",
-            "erasure_enabled": 1,
-            "groq_enabled": 0,
-            "system_channel_id": None,
-            "broadcast_channel_id": None,
-            "dao_role_to_gender": "{}",
-            "updated_at": ui.now_str(),
-        }
-        await self.db.execute(
-            "INSERT INTO guild_config (guild_id, qi_enabled_channels, qi_disabled_channels,"
-            " xianxia_terms_language, erasure_enabled, groq_enabled, updated_at)"
-            " VALUES (?,?,?,?,?,?,?)",
-            (guild_id, "[]", "[]", "bilingual", 1, 0, ui.now_str()),
+            cfg = dict(row)
+        else:
+            cfg = {
+                "guild_id": guild_id,
+                "qi_enabled_channels": "[]",
+                "qi_disabled_channels": "[]",
+                "admin_role_id": None,
+                "admin_user_id": None,
+                "xianxia_terms_language": "bilingual",
+                "erasure_enabled": 1,
+                "groq_enabled": 0,
+                "system_channel_id": None,
+                "broadcast_channel_id": None,
+                "dao_role_to_gender": "{}",
+                "updated_at": ui.now_str(),
+            }
+            try:
+                await self.db.execute(
+                    "INSERT INTO guild_config (guild_id, qi_enabled_channels, qi_disabled_channels,"
+                    " xianxia_terms_language, erasure_enabled, groq_enabled, updated_at)"
+                    " VALUES (?,?,?,?,?,?,?)",
+                    (guild_id, "[]", "[]", "bilingual", 1, 0, ui.now_str()),
+                )
+            except sqlite3.IntegrityError:
+                # A concurrent first call already created the row — refetch it.
+                row = await self.db.fetchone(
+                    "SELECT * FROM guild_config WHERE guild_id=?", (guild_id,)
+                )
+                cfg = dict(row) if row else cfg
+
+        self._guild_configs[guild_id] = (time.monotonic(), cfg)
+        return dict(cfg)
+
+    # ------------------------------------------------- hot-path cached reads
+    async def sect_array_level(self, sect_id: int | None) -> int:
+        """Cached sect array level (TTL) — called on the passive-Qi hot path."""
+        if not sect_id:
+            return 0
+        cached = self._cache_get(self._sect_array_levels, sect_id)
+        if cached is not None:
+            return cached
+        row = await self.db.fetchone("SELECT array_level FROM sects WHERE id=?", (sect_id,))
+        level = int(row["array_level"]) if row else 0
+        self._sect_array_levels[sect_id] = (time.monotonic(), level)
+        return level
+
+    async def active_companions(self, cultivator_id: int) -> list[dict]:
+        """Cached active companions (TTL) — called on the passive-Qi hot path."""
+        cached = self._cache_get(self._companion_cache, cultivator_id)
+        if cached is not None:
+            return [dict(c) for c in cached]   # copy — callers must not mutate
+        rows = await self.db.fetchall(
+            "SELECT intimacy_level FROM companions WHERE owner_id=? AND status='active'",
+            (cultivator_id,),
         )
-        return defaults
+        comps = [dict(r) for r in rows]
+        self._companion_cache[cultivator_id] = (time.monotonic(), comps)
+        return comps
 
     async def _announce_channel(self, guild: discord.Guild):
         cfg = await self._guild_config(guild.id)

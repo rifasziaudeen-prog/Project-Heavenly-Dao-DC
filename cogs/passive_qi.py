@@ -18,7 +18,7 @@ from discord.ext import commands
 from bot import utils as ui
 from config import default as config
 from core import math as gm, passive_logic
-from db.queries import active_companions, get_or_create_cultivator, sect_array_level
+from db.queries import get_or_create_cultivator
 
 log = logging.getLogger("heavenly_dao")
 
@@ -81,9 +81,9 @@ class PassiveQiCog(commands.Cog):
         )
         gain = gm.calculate_qi_gain(
             row["realm_tier"], row["comprehension"], source="message",
-            sect_array_level=await sect_array_level(self.bot.db, row["sect_id"]),
+            sect_array_level=await self.bot.sect_array_level(row["sect_id"]),
             has_sect=bool(row["sect_id"]),
-            active_companions=await active_companions(self.bot.db, row["id"]),
+            active_companions=await self.bot.active_companions(row["id"]),
         )
         self.bot.qi_buffer.append({
             "cid": row["id"], "guild_id": message.guild.id, "qi": gain, "source": "message",

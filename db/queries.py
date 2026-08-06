@@ -57,14 +57,6 @@ async def get_or_create_cultivator(
     return dict(row), True
 
 
-async def active_companions(db: Database, cultivator_id: int) -> list[dict]:
-    rows = await db.fetchall(
-        "SELECT intimacy_level FROM companions WHERE owner_id=? AND status='active'",
-        (cultivator_id,),
-    )
-    return [dict(r) for r in rows]
-
-
 async def active_artifact(db: Database, cultivator_id: int) -> dict | None:
     """Best equipped weapon with a charged active ability (after time recharge).
 
@@ -111,13 +103,6 @@ async def spend_artifact_energy(db: Database, item_id: int, cost: int, now_iso: 
         " WHERE id=?",
         (cost, now_iso, item_id),
     )
-
-
-async def sect_array_level(db: Database, sect_id: int | None) -> int:
-    if not sect_id:
-        return 0
-    row = await db.fetchone("SELECT array_level FROM sects WHERE id=?", (sect_id,))
-    return int(row["array_level"]) if row else 0
 
 
 async def charm_count(db: Database, cultivator_id: int) -> int:

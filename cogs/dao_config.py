@@ -136,6 +136,8 @@ class DaoConfigCog(commands.Cog):
             f"UPDATE guild_config SET {set_clause} WHERE guild_id=?",
             tuple(list(updates.values()) + [interaction.guild_id]),
         )
+        # Drop the in-memory copy so the next read sees the new values.
+        self.bot._invalidate_guild_config(interaction.guild_id)
 
         embed = discord.Embed(
             title="☯ Dao Config Updated · 天道律法已改",
@@ -206,6 +208,7 @@ class DaoConfigCog(commands.Cog):
             " dao_role_to_gender=excluded.dao_role_to_gender",
             (guild.id, admin_role_id, announcement_channel_id, json.dumps(gender_mapping)),
         )
+        self.bot._invalidate_guild_config(guild.id)
 
         # Build final summary
         summary = "🎉 DISCORD SERVER SETUP COMPLETE!"
@@ -279,9 +282,10 @@ class DaoConfigCog(commands.Cog):
                 " ON CONFLICT(guild_id) DO UPDATE SET"
                 " admin_role_id=excluded.admin_role_id,"
                 " announcement_channel_id=excluded.announcement_channel_id,"
-                " dao_role_to_gender=excluded.dao_role_to_gender",
-                (guild.id, admin_role_id, announcement_channel_id, json.dumps(gender_mapping)),
-            )
+            " dao_role_to_gender=excluded.dao_role_to_gender",
+            (guild.id, admin_role_id, announcement_channel_id, json.dumps(gender_mapping)),
+        )
+            self.bot._invalidate_guild_config(guild.id)
 
             # Sync slash commands immediately to this guild
             self.bot.tree.copy_global_to(guild=guild)

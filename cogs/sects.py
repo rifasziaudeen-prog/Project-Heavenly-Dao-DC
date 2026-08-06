@@ -388,6 +388,8 @@ class SectsCog(commands.Cog):
             "UPDATE sects SET array_level=?, treasury_stones=treasury_stones-? WHERE id=?",
             (new_level, cost, sect["id"]),
         )
+        # The new bonus applies immediately — drop the cached array level.
+        self.bot._sect_array_levels.pop(sect["id"], None)
 
         embed = discord.Embed(
             title="🔮 Array Upgraded · 阵法升级",
