@@ -11,6 +11,12 @@ from core import auction as core_auc
 from db import queries
 
 
+class ListingNotActive(Exception):
+    """Raised INSIDE a transaction when a guarded listing claim loses the race
+    (concurrent sweep/cancel/buy already changed it). The caller catches it
+    and replies — the exception path is what rolls the transaction back."""
+
+
 class AuctionCog(commands.Cog):
     def __init__(self, bot) -> None:
         self.bot = bot
@@ -159,24 +165,26 @@ class AuctionCog(commands.Cog):
             await interaction.response.send_message(f"Insufficient spirit stones for the listing fee ({fee:,} stones required).", ephemeral=True)
             return
 
-        # Deduct listing fee & remove item from active inventory
-        await self.bot.db.execute(
-            "UPDATE cultivators SET spirit_stones=spirit_stones-? WHERE id=?",
-            (fee, row["id"]),
-        )
+        # Deduct listing fee, detach the item, and open the listing as ONE
+        # unit — a crash mid-way can't eat the fee with no listing behind it.
+        async with self.bot.db.transaction():
+            await self.bot.db.execute(
+                "UPDATE cultivators SET spirit_stones=spirit_stones-? WHERE id=?",
+                (fee, row["id"]),
+            )
 
-        # Set item owner to null while listed
-        await self.bot.db.execute("UPDATE items SET owner_id=NULL WHERE id=?", (item_dict["id"],))
+            # Set item owner to null while listed
+            await self.bot.db.execute("UPDATE items SET owner_id=NULL WHERE id=?", (item_dict["id"],))
 
-        duration_hours = core_auc.clamp_listing_duration(duration_hours)
-        expires_at = ui.future_str(hours=duration_hours)
+            duration_hours = core_auc.clamp_listing_duration(duration_hours)
+            expires_at = ui.future_str(hours=duration_hours)
 
-        cursor = await self.bot.db.execute(
-            "INSERT INTO market_listings (seller_id, item_id, quantity, price, buyout_price, expires_at)"
-            " VALUES (?,?,?,?,?,?)",
-            (row["id"], item_dict["id"], item_dict.get("quantity", 1), price, buyout_price, expires_at),
-        )
-        listing_id = cursor.lastrowid
+            cursor = await self.bot.db.execute(
+                "INSERT INTO market_listings (seller_id, item_id, quantity, price, buyout_price, expires_at)"
+                " VALUES (?,?,?,?,?,?)",
+                (row["id"], item_dict["id"], item_dict.get("quantity", 1), price, buyout_price, expires_at),
+            )
+            listing_id = cursor.lastrowid
 
         embed = discord.Embed(
             title=ui.format_title(f"📦 Item Listed: Listing #{listing_id} · 上架", lang),
@@ -222,30 +230,35 @@ class AuctionCog(commands.Cog):
 
         proceeds = core_auc.calculate_sale_proceeds(cost)
 
-        # Atomic claim — only sell if the listing is still active. Guards against
-        # a concurrent sweep_expired_listings / cancel_listing racing this buy.
-        cursor = await self.bot.db.execute(
-            "UPDATE market_listings SET status='sold', sold_at=? WHERE id=? AND status='active'",
-            (ui.now_str(), listing_id),
-        )
-        if not cursor.rowcount:
+        # Claim the listing, move the stones, and transfer the item as ONE
+        # unit. The guarded claim is the FIRST statement inside the block, so
+        # a crash can never leave a 'sold' listing with no money movement.
+        try:
+            async with self.bot.db.transaction():
+                cursor = await self.bot.db.execute(
+                    "UPDATE market_listings SET status='sold', sold_at=? WHERE id=? AND status='active'",
+                    (ui.now_str(), listing_id),
+                )
+                if not cursor.rowcount:
+                    raise ListingNotActive(listing_id)
+
+                # Deduct buyer stones
+                await self.bot.db.execute("UPDATE cultivators SET spirit_stones=spirit_stones-? WHERE id=?", (cost, row["id"]))
+
+                # Credit seller proceeds
+                await self.bot.db.execute("UPDATE cultivators SET spirit_stones=spirit_stones+? WHERE id=?", (proceeds, lst["seller_id"]))
+
+                # Refund previous bidder if any
+                if lst.get("current_bidder_id") and lst["current_bid"] > 0:
+                    await self.bot.db.execute("UPDATE cultivators SET spirit_stones=spirit_stones+? WHERE id=?", (lst["current_bid"], lst["current_bidder_id"]))
+
+                # Transfer item to buyer
+                await self.bot.db.execute("UPDATE items SET owner_id=? WHERE id=?", (row["id"], lst["item_id"]))
+        except ListingNotActive:
             await interaction.response.send_message(
                 f"Listing #{listing_id} was already sold, cancelled, or expired.", ephemeral=True
             )
             return
-
-        # Deduct buyer stones
-        await self.bot.db.execute("UPDATE cultivators SET spirit_stones=spirit_stones-? WHERE id=?", (cost, row["id"]))
-
-        # Credit seller proceeds
-        await self.bot.db.execute("UPDATE cultivators SET spirit_stones=spirit_stones+? WHERE id=?", (proceeds, lst["seller_id"]))
-
-        # Refund previous bidder if any
-        if lst.get("current_bidder_id") and lst["current_bid"] > 0:
-            await self.bot.db.execute("UPDATE cultivators SET spirit_stones=spirit_stones+? WHERE id=?", (lst["current_bid"], lst["current_bidder_id"]))
-
-        # Transfer item to buyer
-        await self.bot.db.execute("UPDATE items SET owner_id=? WHERE id=?", (row["id"], lst["item_id"]))
 
         embed = discord.Embed(
             title=ui.format_title(f"🎉 Item Purchased: Listing #{listing_id} · 交易成功", lang),
@@ -290,24 +303,28 @@ class AuctionCog(commands.Cog):
             await interaction.response.send_message(f"Insufficient spirit stones to place bid of {amount:,}.", ephemeral=True)
             return
 
-        # Atomic claim — only bid if the listing is still active. Guards against
-        # a concurrent sweep/cancel racing this bid (stale escrow refunds).
-        cursor = await self.bot.db.execute(
-            "UPDATE market_listings SET current_bid=?, current_bidder_id=? WHERE id=? AND status='active'",
-            (amount, row["id"], listing_id),
-        )
-        if not cursor.rowcount:
+        # Claim the bid + move escrow as ONE unit — a crash can't leave the
+        # listing showing a new top bid while nobody actually paid it.
+        try:
+            async with self.bot.db.transaction():
+                cursor = await self.bot.db.execute(
+                    "UPDATE market_listings SET current_bid=?, current_bidder_id=? WHERE id=? AND status='active'",
+                    (amount, row["id"], listing_id),
+                )
+                if not cursor.rowcount:
+                    raise ListingNotActive(listing_id)
+
+                # Deduct new bidder's stones
+                await self.bot.db.execute("UPDATE cultivators SET spirit_stones=spirit_stones-? WHERE id=?", (amount, row["id"]))
+
+                # Refund previous bidder if any
+                if lst.get("current_bidder_id") and lst["current_bid"] > 0:
+                    await self.bot.db.execute("UPDATE cultivators SET spirit_stones=spirit_stones+? WHERE id=?", (lst["current_bid"], lst["current_bidder_id"]))
+        except ListingNotActive:
             await interaction.response.send_message(
                 f"Listing #{listing_id} was already sold, cancelled, or expired.", ephemeral=True
             )
             return
-
-        # Deduct new bidder's stones
-        await self.bot.db.execute("UPDATE cultivators SET spirit_stones=spirit_stones-? WHERE id=?", (amount, row["id"]))
-
-        # Refund previous bidder if any
-        if lst.get("current_bidder_id") and lst["current_bid"] > 0:
-            await self.bot.db.execute("UPDATE cultivators SET spirit_stones=spirit_stones+? WHERE id=?", (lst["current_bid"], lst["current_bidder_id"]))
 
         embed = discord.Embed(
             title=ui.format_title(f"🏷 Bid Placed: Listing #{listing_id} · 竞价", lang),
@@ -337,36 +354,40 @@ class AuctionCog(commands.Cog):
             await interaction.response.send_message(err, ephemeral=True)
             return
 
-        # 1. Atomically claim the cancel — guarded UPDATE + rowcount check so a
-        #    concurrent /buy (or a crash-retry) cannot double-apply the refunds.
-        cursor = await self.bot.db.execute(
-            "UPDATE market_listings SET status='cancelled', sold_at=? WHERE id=? AND status='active' AND seller_id=?",
-            (ui.now_str(), listing_id, row["id"]),
-        )
-        if not cursor.rowcount:
+        # Claim the cancel, refund both parties, and return the item as ONE
+        # unit — a crash can't refund the fee but lose the item (or vice versa).
+        try:
+            async with self.bot.db.transaction():
+                cursor = await self.bot.db.execute(
+                    "UPDATE market_listings SET status='cancelled', sold_at=? WHERE id=? AND status='active' AND seller_id=?",
+                    (ui.now_str(), listing_id, row["id"]),
+                )
+                if not cursor.rowcount:
+                    raise ListingNotActive(listing_id)
+
+                # Refund escrowed bid (if any) to the current bidder
+                if lst.get("current_bid") and lst["current_bid"] > 0 and lst.get("current_bidder_id"):
+                    await self.bot.db.execute(
+                        "UPDATE cultivators SET spirit_stones=spirit_stones+? WHERE id=?",
+                        (lst["current_bid"], lst["current_bidder_id"]),
+                    )
+
+                # Refund the listing fee to the seller
+                fee_refund = core_auc.calculate_listing_fee(lst["price"])
+                await self.bot.db.execute(
+                    "UPDATE cultivators SET spirit_stones=spirit_stones+? WHERE id=?",
+                    (fee_refund, row["id"]),
+                )
+
+                # Return the item to the seller's inventory
+                await self.bot.db.execute(
+                    "UPDATE items SET owner_id=? WHERE id=?", (row["id"], lst["item_id"])
+                )
+        except ListingNotActive:
             await interaction.response.send_message(
                 f"Listing #{listing_id} is no longer active or is not yours.", ephemeral=True
             )
             return
-
-        # 2. Refund escrowed bid (if any) to the current bidder
-        if lst.get("current_bid") and lst["current_bid"] > 0 and lst.get("current_bidder_id"):
-            await self.bot.db.execute(
-                "UPDATE cultivators SET spirit_stones=spirit_stones+? WHERE id=?",
-                (lst["current_bid"], lst["current_bidder_id"]),
-            )
-
-        # 3. Refund the listing fee to the seller
-        fee_refund = core_auc.calculate_listing_fee(lst["price"])
-        await self.bot.db.execute(
-            "UPDATE cultivators SET spirit_stones=spirit_stones+? WHERE id=?",
-            (fee_refund, row["id"]),
-        )
-
-        # 4. Return the item to the seller's inventory
-        await self.bot.db.execute(
-            "UPDATE items SET owner_id=? WHERE id=?", (row["id"], lst["item_id"])
-        )
 
         embed = discord.Embed(
             title=ui.format_title(f"🗑 Listing Cancelled: Listing #{listing_id} · 下架", lang),
@@ -450,9 +471,10 @@ class AuctionCog(commands.Cog):
             await interaction.response.send_message("You have no pending trade offers.", ephemeral=True)
             return
 
-        # Transfer item to recipient
-        await self.bot.db.execute("UPDATE items SET owner_id=? WHERE id=?", (row["id"], offer["item_id"]))
-        await self.bot.db.execute("UPDATE trade_offers SET status='accepted' WHERE id=?", (offer["id"],))
+        # Transfer the item and mark the offer accepted as ONE unit.
+        async with self.bot.db.transaction():
+            await self.bot.db.execute("UPDATE items SET owner_id=? WHERE id=?", (row["id"], offer["item_id"]))
+            await self.bot.db.execute("UPDATE trade_offers SET status='accepted' WHERE id=?", (offer["id"],))
 
         embed = discord.Embed(
             title=ui.format_title(f"✅ Trade Accepted: Offer #{offer['id']} · 交易完成", lang),

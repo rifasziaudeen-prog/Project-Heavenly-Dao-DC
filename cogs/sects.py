@@ -104,16 +104,18 @@ class SectsCog(commands.Cog):
             )
             return
 
-        cursor = await self.bot.db.execute(
-            "INSERT INTO sects (name, patriarch_id, alignment)"
-            " VALUES (?,?,?)",
-            (name, me["id"], "Neutral"),
-        )
-        sect_id = cursor.lastrowid
-        await self.bot.db.execute(
-            "UPDATE cultivators SET sect_id=?, sect_rank=? WHERE id=?",
-            (sect_id, "Patriarch", me["id"]),
-        )
+        # The sect row and the founder's membership commit as one unit.
+        async with self.bot.db.transaction():
+            cursor = await self.bot.db.execute(
+                "INSERT INTO sects (name, patriarch_id, alignment)"
+                " VALUES (?,?,?)",
+                (name, me["id"], "Neutral"),
+            )
+            sect_id = cursor.lastrowid
+            await self.bot.db.execute(
+                "UPDATE cultivators SET sect_id=?, sect_rank=? WHERE id=?",
+                (sect_id, "Patriarch", me["id"]),
+            )
 
         embed = discord.Embed(
             title="🏯 Sect Founded · 立宗",
@@ -195,13 +197,14 @@ class SectsCog(commands.Cog):
         is_patriarch = sect and sect["patriarch_id"] == me["id"]
 
         if is_patriarch:
-            # Disband: clear all members, delete the sect row.
-            await self.bot.db.execute(
-                "UPDATE cultivators SET sect_id=NULL, sect_rank='Outer Disciple'"
-                " WHERE sect_id=?",
-                (sect["id"],),
-            )
-            await self.bot.db.execute("DELETE FROM sects WHERE id=?", (sect["id"],))
+            # Disband: clear all members and delete the sect row as one unit.
+            async with self.bot.db.transaction():
+                await self.bot.db.execute(
+                    "UPDATE cultivators SET sect_id=NULL, sect_rank='Outer Disciple'"
+                    " WHERE sect_id=?",
+                    (sect["id"],),
+                )
+                await self.bot.db.execute("DELETE FROM sects WHERE id=?", (sect["id"],))
             embed = discord.Embed(
                 title="🏚 Sect Disbanded · 散宗",
                 description=(
@@ -331,14 +334,16 @@ class SectsCog(commands.Cog):
             await self._refuse(interaction, reason)
             return
 
-        await self.bot.db.execute(
-            "UPDATE cultivators SET spirit_stones=spirit_stones-? WHERE id=?",
-            (amount, me["id"]),
-        )
-        await self.bot.db.execute(
-            "UPDATE sects SET treasury_stones=treasury_stones+? WHERE id=?",
-            (amount, me["sect_id"]),
-        )
+        # Donor's wallet and the sect treasury move as one unit.
+        async with self.bot.db.transaction():
+            await self.bot.db.execute(
+                "UPDATE cultivators SET spirit_stones=spirit_stones-? WHERE id=?",
+                (amount, me["id"]),
+            )
+            await self.bot.db.execute(
+                "UPDATE sects SET treasury_stones=treasury_stones+? WHERE id=?",
+                (amount, me["sect_id"]),
+            )
         sect = await self._sect_of(me)
 
         embed = discord.Embed(
@@ -430,15 +435,17 @@ class SectsCog(commands.Cog):
 
         cost = sects.array_burst_cost(sect["array_level"])
         pulse = sects.array_burst_pulse(sect["array_level"])
-        await self.bot.db.execute(
-            "UPDATE sects SET treasury_stones=treasury_stones-?, last_burst_at=? WHERE id=?",
-            (cost, now.isoformat(), sect["id"]),
-        )
-        await self.bot.db.execute(
-            "UPDATE cultivators SET stored_qi_current="
-            " MIN(stored_qi_max+stored_qi_max_bonus, stored_qi_current+?) WHERE sect_id=?",
-            (pulse, sect["id"]),
-        )
+        # Treasury spend + the member pulse commit as one unit.
+        async with self.bot.db.transaction():
+            await self.bot.db.execute(
+                "UPDATE sects SET treasury_stones=treasury_stones-?, last_burst_at=? WHERE id=?",
+                (cost, now.isoformat(), sect["id"]),
+            )
+            await self.bot.db.execute(
+                "UPDATE cultivators SET stored_qi_current="
+                " MIN(stored_qi_max+stored_qi_max_bonus, stored_qi_current+?) WHERE sect_id=?",
+                (pulse, sect["id"]),
+            )
         members = await sect_members(self.bot.db, sect["id"])
 
         embed = discord.Embed(

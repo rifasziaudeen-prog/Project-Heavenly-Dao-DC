@@ -371,6 +371,25 @@ A fully player-driven economy without NPC merchants — list, bid, buyout, and t
 * **5% Market Sales Tax**: Deducted from seller proceeds upon successful item purchase.
 * **Direct P2P Trading**: `/trade @user` offers direct item-to-item transfers with a 10-minute confirmation window.
 
+## Crash-Safe Economy · 铁律账本 (v1.15.0)
+
+Every multi-step money/item flow runs inside **`db.transaction()`** — a single
+SQLite transaction that commits all statements as one unit or rolls everything
+back on any failure (or a crash — SQLite rolls back open transactions on
+process death, which is exactly what a rollback reproduces).
+
+* **Wrapped flows:** `/buy`, `/bid`, `/sell`, `/cancel_listing`, `/trade_accept`,
+  reincarnation rebirth, duel settle/refund, battle rewards, `/learn`, `/reroll`,
+  intent spending, cultivation-base burns, and sect create/disband/donate/burst.
+* **Atomic race guards:** the auction's `WHERE status='active'` + `rowcount`
+  claims now run as the FIRST statement inside the transaction and raise on a
+  lost race — the claim and the money movement can never be torn apart.
+* **Reentrant write lock:** background loops (auction sweep, Stored-Qi regen,
+  Qi flush) wait for an open transaction instead of being silently absorbed
+  into it and rolled back with it.
+* **Nested blocks** use SAVEPOINTs, so an inner failure rolls back only itself.
+* Rule of the road: read before the block, no Discord awaits inside it.
+
 ## Project layout
 
 ```
@@ -386,7 +405,7 @@ scripts/        Automation scripts (setup_discord_server.py, migrate_sqlite_to_p
                 validate_migration.py, github_backup.py)
 templates/      Narrative fragment JSON — add files to extend flavor
 config/         Env-driven settings (default.py, postgres.py)
-tests/          pytest suite (264 tests covering balance, bonds, sects, items, alchemy, reincarnation,
+tests/          pytest suite (277 tests covering balance, bonds, sects, items, alchemy, reincarnation,
                 secret realms, world events, dao laws, auction, affinities, combat, global players,
                 postgres, migrations, github backup, server layout)
 ```
@@ -583,6 +602,7 @@ hidden multipliers or percentage stacking).
 * **v1.12.0:** Developer experience upgrade — `BALANCE.md` tuning sheet, `new_feature.py` scaffolder, `check_docs.py` drift-linter *(Completed)*
 * **v1.13.0:** Artifact active abilities — spirit-energy weapon strikes with time/stone recharge *(Completed)* — see the [dedicated section](#artifact-active-abilities--法宝-v1130)
 * **v1.14.0:** Newbie Foundations — front-loaded Qi curve, `/daily` tribute, `/register` starter kit, register trap fixed *(Completed)* — see the [dedicated section](#newbie-foundations--入门根基-v1140)
+* **v1.15.0:** Crash-Safe Economy — `db.transaction()` atomic write blocks across auction, combat, sects & reincarnation *(Completed)* — see the [dedicated section](#crash-safe-economy--铁律账本-v1150)
 
 ---
 

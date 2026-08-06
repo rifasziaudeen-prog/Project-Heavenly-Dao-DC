@@ -301,25 +301,28 @@ class HeavenlyDaoBot(commands.Bot):
             (ui.now_str(),),
         )
         for lst in [dict(r) for r in due]:
-            # Atomic claim — only expire if still active.
-            cursor = await self.db.execute(
-                "UPDATE market_listings SET status='expired', sold_at=? WHERE id=? AND status='active'",
-                (ui.now_str(), lst["id"]),
-            )
-            if not cursor.rowcount:
-                continue  # already sold/cancelled by a concurrent operation
-
-            # Refund escrowed bid (if any) to the current bidder.
-            if lst["current_bid"] > 0 and lst.get("current_bidder_id"):
-                await self.db.execute(
-                    "UPDATE cultivators SET spirit_stones=spirit_stones+? WHERE id=?",
-                    (lst["current_bid"], lst["current_bidder_id"]),
+            # Expire, refund, and return the item as ONE unit per listing — a
+            # crash mid-sweep can't refund the bidder and lose the item.
+            async with self.db.transaction():
+                # Atomic claim — only expire if still active.
+                cursor = await self.db.execute(
+                    "UPDATE market_listings SET status='expired', sold_at=? WHERE id=? AND status='active'",
+                    (ui.now_str(), lst["id"]),
                 )
+                if not cursor.rowcount:
+                    continue  # already sold/cancelled by a concurrent operation
 
-            # Return the item to the seller's inventory.
-            await self.db.execute(
-                "UPDATE items SET owner_id=? WHERE id=?", (lst["seller_id"], lst["item_id"])
-            )
+                # Refund escrowed bid (if any) to the current bidder.
+                if lst["current_bid"] > 0 and lst.get("current_bidder_id"):
+                    await self.db.execute(
+                        "UPDATE cultivators SET spirit_stones=spirit_stones+? WHERE id=?",
+                        (lst["current_bid"], lst["current_bidder_id"]),
+                    )
+
+                # Return the item to the seller's inventory.
+                await self.db.execute(
+                    "UPDATE items SET owner_id=? WHERE id=?", (lst["seller_id"], lst["item_id"])
+                )
 
     @tasks.loop(seconds=config.WORLD_EVENT_POLL_SECONDS)
     async def event_scheduler_loop(self) -> None:

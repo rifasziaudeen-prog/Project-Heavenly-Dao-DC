@@ -4,6 +4,9 @@
   concurrent readers and keeps writes fast).
 * Versioned migration runner (`migrations/*.sql`).
 * Native aiosqlite backup for the daily snapshot.
+* Crash-atomic write blocks via `Database.transaction()` (BEGIN / COMMIT /
+  ROLLBACK) — multi-step flows like /buy, reincarnation, and duel payouts
+  commit as one unit or not at all.
 
 All game-logic queries live in the cogs / core modules; this module only
 provides plumbing so the migration path to PostgreSQL (see MIGRATION.md)
@@ -11,10 +14,13 @@ stays confined to a few query functions.
 """
 from __future__ import annotations
 
+import asyncio
 import re
 import sqlite3
 import threading
+from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import AsyncIterator
 
 import aiosqlite
 import aiosqlite.core as _aiosqlite_core
@@ -45,12 +51,63 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 """
 
 
+class _ReentrantAsyncLock:
+    """asyncio.Lock that the owning task can re-acquire without deadlocking.
+
+    The transaction helper holds the write lock across its whole block, and
+    the block's own statements must still be able to run — so a plain
+    asyncio.Lock would deadlock on nested transactions. This tracks the
+    owning task and a re-entry count: the owner passes through instantly,
+    any OTHER task blocks until the owner releases (protecting the open
+    transaction from absorbed writes).
+    """
+
+    def __init__(self) -> None:
+        self._lock = asyncio.Lock()
+        self._owner: asyncio.Task | None = None
+        self._count = 0
+
+    async def acquire(self) -> None:
+        task = asyncio.current_task()
+        if task is self._owner:
+            self._count += 1
+            return
+        await self._lock.acquire()
+        self._owner = task
+        self._count = 1
+
+    def release(self) -> None:
+        task = asyncio.current_task()
+        if task is not self._owner:
+            raise RuntimeError("reentrant lock released by a non-owner task")
+        self._count -= 1
+        if self._count == 0:
+            self._owner = None
+            self._lock.release()
+
+
 class Database:
     """Thin async wrapper around a single aiosqlite connection."""
 
     def __init__(self, path: str | Path) -> None:
         self.path = str(path)
         self.conn: aiosqlite.Connection | None = None
+        # Transaction bookkeeping: `_tx_depth > 0` means a transaction (or
+        # nested savepoint) is open on this single connection. The reentrant
+        # lock serializes writers so another task's statement can never be
+        # absorbed into (and silently rolled back with) a transaction it
+        # doesn't own.
+        self._tx_lock = _ReentrantAsyncLock()
+        self._tx_depth = 0
+
+    @asynccontextmanager
+    async def _tx_guard(self):
+        """Reentrant write lock: same task passes through, others wait."""
+        await self._tx_lock.acquire()
+        try:
+            yield
+        finally:
+            self._tx_lock.release()
 
     # -- lifecycle -----------------------------------------------------------
     async def connect(self) -> None:
@@ -74,14 +131,76 @@ class Database:
     # -- helpers -------------------------------------------------------------
     async def execute(self, sql: str, params: tuple = ()) -> aiosqlite.Cursor:
         assert self.conn is not None, "Database not connected"
-        cursor = await self.conn.execute(sql, params)
-        await self.conn.commit()
-        return cursor
+        async with self._tx_guard():
+            cursor = await self.conn.execute(sql, params)
+            if self._tx_depth == 0:
+                # Auto-commit ONLY outside a transaction; inside one, the
+                # owning block's transaction() issues the single
+                # COMMIT/ROLLBACK.
+                await self.conn.commit()
+            return cursor
 
     async def executemany(self, sql: str, seq: list[tuple]) -> None:
         assert self.conn is not None, "Database not connected"
-        await self.conn.executemany(sql, seq)
-        await self.conn.commit()
+        async with self._tx_guard():
+            await self.conn.executemany(sql, seq)
+            if self._tx_depth == 0:
+                await self.conn.commit()
+
+    @asynccontextmanager
+    async def transaction(self) -> AsyncIterator["Database"]:
+        """Crash-atomic write block (BEGIN / COMMIT / ROLLBACK).
+
+        Usage:
+            async with db.transaction():
+                await db.execute(...)
+                await db.execute(...)
+
+        * Success commits every statement as ONE unit.
+        * ANY exception rolls everything back, then re-raises.
+        * Nested blocks become SAVEPOINTs, so an inner block's failure rolls
+          back only itself — the outer transaction survives.
+        * While a block is open, `execute`/`executemany` skip auto-commit and
+          other tasks' writes wait on the reentrant lock instead of joining
+          the block.
+        * Rule of the road: read what you need BEFORE the block, and do NOT
+          await Discord (views, sends) inside it — the write lock is held for
+          the block's whole duration.
+        """
+        assert self.conn is not None, "Database not connected"
+        async with self._tx_guard():
+            if self._tx_depth:
+                name = f"hdao_sp{self._tx_depth}"
+                await self.conn.execute(f"SAVEPOINT {name}")
+                self._tx_depth += 1
+                try:
+                    yield self
+                except BaseException:
+                    await self.conn.execute(f"ROLLBACK TO {name}")
+                    raise
+                finally:
+                    await self.conn.execute(f"RELEASE {name}")
+                    self._tx_depth -= 1
+            else:
+                await self.conn.execute("BEGIN")
+                self._tx_depth += 1
+                try:
+                    yield self
+                except BaseException:
+                    await self.conn.rollback()
+                    raise
+                else:
+                    try:
+                        await self.conn.commit()
+                    except BaseException:
+                        # A failed COMMIT leaves the transaction OPEN — roll it
+                        # back so the connection is never left holding a live
+                        # transaction that a later auto-commit could silently
+                        # commit as if it had succeeded.
+                        await self.conn.rollback()
+                        raise
+                finally:
+                    self._tx_depth -= 1
 
     async def fetchone(self, sql: str, params: tuple = ()) -> aiosqlite.Row | None:
         assert self.conn is not None, "Database not connected"

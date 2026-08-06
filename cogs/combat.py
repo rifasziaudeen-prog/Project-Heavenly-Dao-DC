@@ -384,17 +384,21 @@ class CombatCog(commands.Cog):
             return False
         count = session.burn_count.get(user_id, 0) + 1
         session.burn_count[user_id] = count
-        await self.bot.db.execute(
-            "UPDATE cultivators SET qi_current=qi_current-?, stored_qi_current="
-            " MIN(stored_qi_max+stored_qi_max_bonus, stored_qi_current+?) WHERE id=?",
-            (gm.burn_cost(cult["realm_tier"]), core_cbt.BURN_STORED_QI_GAIN, cult["id"]),
-        )
-        consequence = gm.burn_consequence(count, cult["realm_tier"], erasure_enabled=True)
-        if consequence["heart_demon_delta"]:
+        # The base burn + its Heart Demon consequence commit as one unit.
+        async with self.bot.db.transaction():
             await self.bot.db.execute(
-                "UPDATE cultivators SET heart_demon_ratio=MIN(1.0, heart_demon_ratio+?) WHERE id=?",
-                (consequence["heart_demon_delta"], cult["id"]),
+                "UPDATE cultivators SET qi_current=qi_current-?, stored_qi_current="
+                " MIN(stored_qi_max+stored_qi_max_bonus, stored_qi_current+?) WHERE id=?",
+                (gm.burn_cost(cult["realm_tier"]), core_cbt.BURN_STORED_QI_GAIN, cult["id"]),
             )
+            consequence = gm.burn_consequence(count, cult["realm_tier"], erasure_enabled=True)
+            if consequence["heart_demon_delta"]:
+                await self.bot.db.execute(
+                    "UPDATE cultivators SET heart_demon_ratio=MIN(1.0, heart_demon_ratio+?) WHERE id=?",
+                    (consequence["heart_demon_delta"], cult["id"]),
+                )
+        # Random consequence rolls happen AFTER the commit — they end the fight
+        # rather than being part of the atomic burn itself.
         if consequence["retreat_or_deviation"] and random.random() < 0.5:
             await self._force_retreat(session, user_id, reason="burn_deviation")
             return False
@@ -403,7 +407,13 @@ class CombatCog(commands.Cog):
         return True
 
     async def _force_retreat(self, session, user_id: int, reason: str) -> None:
-        await self._end_combat(session, retreat_by=user_id, reason=reason)
+        """Burn deviation forces the fighter out — a duel is a loss for them, a
+        battle ends without victory. (Previously routed to a non-existent
+        `_end_combat`; this would have crashed the deviation branch.)"""
+        if isinstance(session, BattleSession):
+            await self._end_battle(session, won=False, reason=reason)
+        else:
+            await self._end_duel(session, defeated_uid=user_id, reason=reason)
 
     async def _burn_erasure(self, cult: dict) -> None:
         """The final burn threshold can trigger Heavenly Dao Erasure (tier 8+)."""
@@ -545,27 +555,31 @@ class CombatCog(commands.Cog):
 
     async def _spend_intent(self, session: CombatSession, user_id: int, intent: dict) -> None:
         cult = session.cultivator(user_id)
-        cost = self._intent_cost(intent)
-        if cost > 0:
-            await self.bot.db.execute(
-                "UPDATE cultivators SET stored_qi_current=MAX(0, stored_qi_current-?) WHERE id=?",
-                (cost, cult["id"]),
-            )
-        # Artifact active: spend spirit energy on activation.
-        if intent["kind"] == "artifact" and intent.get("energy_cost") and intent.get("active_item_id"):
-            await spend_artifact_energy(
-                self.bot.db, intent["active_item_id"], intent["energy_cost"],
-                datetime.now(timezone.utc).isoformat(),
-            )
-        # Technique mastery progress + pill consumption
-        if intent["kind"] == "technique" and intent.get("technique_id"):
-            await self.bot.db.execute(
-                "UPDATE cultivator_techniques SET mastery_progress=MIN(100.0, mastery_progress+?),"
-                " times_used=times_used+1 WHERE cultivator_id=? AND technique_id=?",
-                (core_cbt.TECHNIQUE_MASTERY_PER_USE, cult["id"], intent["technique_id"]),
-            )
-        if intent["kind"] == "pill":
-            await self._consume_stored_qi_pill(cult)
+        # Stored Qi, artifact energy, mastery progress, and any pill consumed
+        # all land as ONE unit — a crash mid-round can't charge the cost and
+        # skip the effect (or vice versa).
+        async with self.bot.db.transaction():
+            cost = self._intent_cost(intent)
+            if cost > 0:
+                await self.bot.db.execute(
+                    "UPDATE cultivators SET stored_qi_current=MAX(0, stored_qi_current-?) WHERE id=?",
+                    (cost, cult["id"]),
+                )
+            # Artifact active: spend spirit energy on activation.
+            if intent["kind"] == "artifact" and intent.get("energy_cost") and intent.get("active_item_id"):
+                await spend_artifact_energy(
+                    self.bot.db, intent["active_item_id"], intent["energy_cost"],
+                    datetime.now(timezone.utc).isoformat(),
+                )
+            # Technique mastery progress + pill consumption
+            if intent["kind"] == "technique" and intent.get("technique_id"):
+                await self.bot.db.execute(
+                    "UPDATE cultivator_techniques SET mastery_progress=MIN(100.0, mastery_progress+?),"
+                    " times_used=times_used+1 WHERE cultivator_id=? AND technique_id=?",
+                    (core_cbt.TECHNIQUE_MASTERY_PER_USE, cult["id"], intent["technique_id"]),
+                )
+            if intent["kind"] == "pill":
+                await self._consume_stored_qi_pill(cult)
 
     async def _consume_stored_qi_pill(self, cult: dict) -> None:
         row = await self.bot.db.fetchone(
@@ -713,18 +727,19 @@ class CombatCog(commands.Cog):
 
         if defeated_uid is None:
             # Draw (stall cap): refund wagers, no titles, log without a loser.
-            if duel.wager:
-                ids = (duel.cultivator(duel.p1_uid)["id"], duel.cultivator(duel.p2_uid)["id"])
+            async with self.bot.db.transaction():
+                if duel.wager:
+                    ids = (duel.cultivator(duel.p1_uid)["id"], duel.cultivator(duel.p2_uid)["id"])
+                    await self.bot.db.execute(
+                        "UPDATE cultivators SET spirit_stones=spirit_stones+? WHERE id IN (?,?)",
+                        (duel.wager, *ids),
+                    )
                 await self.bot.db.execute(
-                    "UPDATE cultivators SET spirit_stones=spirit_stones+? WHERE id IN (?,?)",
-                    (duel.wager, *ids),
+                    "INSERT INTO combat_log (guild_id, winner_id, loser_id, mode, rounds, reason,"
+                    " wager_type, wager_amount) VALUES (?,?,NULL,?,?,?,?,?)",
+                    (duel.guild_id, "duel", duel.round, reason,
+                     "stones" if duel.wager else "none", duel.wager),
                 )
-            await self.bot.db.execute(
-                "INSERT INTO combat_log (guild_id, winner_id, loser_id, mode, rounds, reason,"
-                " wager_type, wager_amount) VALUES (?,?,NULL,?,?,?,?,?)",
-                (duel.guild_id, "duel", duel.round, reason,
-                 "stones" if duel.wager else "none", duel.wager),
-            )
             embed = discord.Embed(
                 title="🤝 The duel ends in a draw!",
                 description=(f"Neither cultivator could claim victory after **{duel.round} rounds**."
@@ -741,30 +756,34 @@ class CombatCog(commands.Cog):
         winner_uid = duel.p2_uid if defeated_uid == duel.p1_uid else duel.p1_uid
         winner, loser = duel.cultivator(winner_uid), duel.cultivator(defeated_uid)
 
-        # Apply titles + heart demon: a duel loss is a flat +1 Heart Demon Point
-        # (internally +0.05 on the 0–1.0 ratio; the player sees the 0–20 scale).
-        loser_titles = ui.add_json_title(loser["titles"], "Defeated 败者")
-        await self.bot.db.execute(
-            "UPDATE cultivators SET titles=?, heart_demon_ratio=MIN(1.0, heart_demon_ratio+0.05), title=? WHERE id=?",
-            (loser_titles, "Defeated 败者", loser["id"]),
-        )
-        winner_titles = ui.add_json_title(winner["titles"], "Victor 胜者")
-        await self.bot.db.execute(
-            "UPDATE cultivators SET titles=? WHERE id=?", (winner_titles, winner["id"]),
-        )
-        # Wager payout
-        if duel.wager:
+        # Titles, Heart Demon, the wager payout, and the combat log land as ONE
+        # unit — a crash mid-settle can't pay the winner without recording the
+        # fight (or stamp the loser's title and lose the payout).
+        async with self.bot.db.transaction():
+            # Apply titles + heart demon: a duel loss is a flat +1 Heart Demon Point
+            # (internally +0.05 on the 0–1.0 ratio; the player sees the 0–20 scale).
+            loser_titles = ui.add_json_title(loser["titles"], "Defeated 败者")
             await self.bot.db.execute(
-                "UPDATE cultivators SET spirit_stones=spirit_stones+? WHERE id=?",
-                (duel.wager * 2, winner["id"]),
+                "UPDATE cultivators SET titles=?, heart_demon_ratio=MIN(1.0, heart_demon_ratio+0.05), title=? WHERE id=?",
+                (loser_titles, "Defeated 败者", loser["id"]),
             )
-        # Log
-        await self.bot.db.execute(
-            "INSERT INTO combat_log (guild_id, winner_id, loser_id, mode, rounds, reason, wager_type, wager_amount)"
-            " VALUES (?,?,?,?,?,?,?,?)",
-            (duel.guild_id, winner["id"], loser["id"], "duel", duel.round, reason,
-             "stones" if duel.wager else "none", duel.wager),
-        )
+            winner_titles = ui.add_json_title(winner["titles"], "Victor 胜者")
+            await self.bot.db.execute(
+                "UPDATE cultivators SET titles=? WHERE id=?", (winner_titles, winner["id"]),
+            )
+            # Wager payout
+            if duel.wager:
+                await self.bot.db.execute(
+                    "UPDATE cultivators SET spirit_stones=spirit_stones+? WHERE id=?",
+                    (duel.wager * 2, winner["id"]),
+                )
+            # Log
+            await self.bot.db.execute(
+                "INSERT INTO combat_log (guild_id, winner_id, loser_id, mode, rounds, reason, wager_type, wager_amount)"
+                " VALUES (?,?,?,?,?,?,?,?)",
+                (duel.guild_id, winner["id"], loser["id"], "duel", duel.round, reason,
+                 "stones" if duel.wager else "none", duel.wager),
+            )
         embed = discord.Embed(
             title=f"🏆 {winner['username']} wins the duel!",
             description=(f"{loser['username']} is defeated ({reason.replace('_', ' ')}).\n"
@@ -869,37 +888,39 @@ class CombatCog(commands.Cog):
         player = session.cultivator(session.p_uid)
         beast = session.beast
 
-        if won:
-            stones = int(beast["stones_reward"])
-            titles = ui.add_json_title(player["titles"], f"Beast Slayer 屠兽者")
-            await self.bot.db.execute(
-                "UPDATE cultivators SET spirit_stones=spirit_stones+?, titles=? WHERE id=?",
-                (stones, titles, player["id"]),
-            )
-            learned = await self._grant_random_technique(player["id"])
-            extra = f"\nYou mastered **{learned}**!" if learned else ""
-            desc = f"You defeated **{beast['name']} {beast['name_zh']}** in {session.round} rounds! +{stones} 💎{extra}"
-        else:
-            if reason == "retreat":
-                stones = int(beast["stones_reward"] * 0.75)
+        # Rewards (or consequences) + the combat log commit as one unit.
+        async with self.bot.db.transaction():
+            if won:
+                stones = int(beast["stones_reward"])
+                titles = ui.add_json_title(player["titles"], f"Beast Slayer 屠兽者")
                 await self.bot.db.execute(
-                    "UPDATE cultivators SET spirit_stones=spirit_stones+? WHERE id=?",
-                    (stones, player["id"]),
+                    "UPDATE cultivators SET spirit_stones=spirit_stones+?, titles=? WHERE id=?",
+                    (stones, titles, player["id"]),
                 )
-                desc = f"You retreated from **{beast['name']}** — you salvage {stones} 💎 (75%)."
+                learned = await self._grant_random_technique(player["id"])
+                extra = f"\nYou mastered **{learned}**!" if learned else ""
+                desc = f"You defeated **{beast['name']} {beast['name_zh']}** in {session.round} rounds! +{stones} 💎{extra}"
             else:
-                await self.bot.db.execute(
-                    "UPDATE cultivators SET heart_demon_ratio=MIN(1.0, heart_demon_ratio+0.02) WHERE id=?",
-                    (player["id"],),
-                )
-                desc = (f"**{beast['name']}** overwhelms you. You flee with your life "
-                        f"(Heart Demon **+{gm.heart_demon_delta_str(0.02)} Points**).")
-        await self.bot.db.execute(
-            "INSERT INTO combat_log (guild_id, winner_id, loser_id, mode, rounds, reason)"
-            " VALUES (?,?,?,?,?,?)",
-            (session.guild_id, player["id"] if won else None, None if won else player["id"],
-             "battle", session.round, reason),
-        )
+                if reason == "retreat":
+                    stones = int(beast["stones_reward"] * 0.75)
+                    await self.bot.db.execute(
+                        "UPDATE cultivators SET spirit_stones=spirit_stones+? WHERE id=?",
+                        (stones, player["id"]),
+                    )
+                    desc = f"You retreated from **{beast['name']}** — you salvage {stones} 💎 (75%)."
+                else:
+                    await self.bot.db.execute(
+                        "UPDATE cultivators SET heart_demon_ratio=MIN(1.0, heart_demon_ratio+0.02) WHERE id=?",
+                        (player["id"],),
+                    )
+                    desc = (f"**{beast['name']}** overwhelms you. You flee with your life "
+                            f"(Heart Demon **+{gm.heart_demon_delta_str(0.02)} Points**).")
+            await self.bot.db.execute(
+                "INSERT INTO combat_log (guild_id, winner_id, loser_id, mode, rounds, reason)"
+                " VALUES (?,?,?,?,?,?)",
+                (session.guild_id, player["id"] if won else None, None if won else player["id"],
+                 "battle", session.round, reason),
+            )
         embed = discord.Embed(title="🐾 Battle Ended", description=desc, color=ui.GOLD if won else ui.CRIMSON)
         try:
             await session.channel.send(embed=embed)
@@ -954,15 +975,18 @@ class CombatCog(commands.Cog):
                 ephemeral=True,
             )
             return
-        if scroll["quantity"] <= 1:
-            await self.bot.db.execute("DELETE FROM items WHERE id=?", (scroll["id"],))
-        else:
-            await self.bot.db.execute("UPDATE items SET quantity=quantity-1 WHERE id=?", (scroll["id"],))
-        entries = core_cbt.roll_entries()
-        await self.bot.db.execute(
-            "INSERT INTO cultivator_techniques (cultivator_id, technique_id, entries) VALUES (?,?,?)",
-            (me["id"], tech["id"], json.dumps(entries)),
-        )
+        # Consuming the scroll and granting the technique are one unit — a
+        # crash can't eat the scroll and leave you empty-handed.
+        async with self.bot.db.transaction():
+            if scroll["quantity"] <= 1:
+                await self.bot.db.execute("DELETE FROM items WHERE id=?", (scroll["id"],))
+            else:
+                await self.bot.db.execute("UPDATE items SET quantity=quantity-1 WHERE id=?", (scroll["id"],))
+            entries = core_cbt.roll_entries()
+            await self.bot.db.execute(
+                "INSERT INTO cultivator_techniques (cultivator_id, technique_id, entries) VALUES (?,?,?)",
+                (me["id"], tech["id"], json.dumps(entries)),
+            )
         q = tech["quality"]
         embed = discord.Embed(
             title=f"📖 Technique Learned: {tech['name']} {tech['name_zh']}",
@@ -1028,18 +1052,20 @@ class CombatCog(commands.Cog):
         if not sand:
             await interaction.response.send_message("You need **Comprehension Sand** (悟道砂) to reroll entries.", ephemeral=True)
             return
-        if sand["quantity"] <= 1:
-            await self.bot.db.execute("DELETE FROM items WHERE id=?", (sand["id"],))
-        else:
-            await self.bot.db.execute("UPDATE items SET quantity=quantity-1 WHERE id=?", (sand["id"],))
-        await self.bot.db.execute(
-            "UPDATE cultivators SET spirit_stones=spirit_stones-100 WHERE id=?", (me["id"],)
-        )
-        entries = core_cbt.roll_entries()
-        await self.bot.db.execute(
-            "UPDATE cultivator_techniques SET entries=? WHERE cultivator_id=? AND technique_id=?",
-            (json.dumps(entries), me["id"], tech["id"]),
-        )
+        # Sand, stones, and the rerolled entries commit as one unit.
+        async with self.bot.db.transaction():
+            if sand["quantity"] <= 1:
+                await self.bot.db.execute("DELETE FROM items WHERE id=?", (sand["id"],))
+            else:
+                await self.bot.db.execute("UPDATE items SET quantity=quantity-1 WHERE id=?", (sand["id"],))
+            await self.bot.db.execute(
+                "UPDATE cultivators SET spirit_stones=spirit_stones-100 WHERE id=?", (me["id"],)
+            )
+            entries = core_cbt.roll_entries()
+            await self.bot.db.execute(
+                "UPDATE cultivator_techniques SET entries=? WHERE cultivator_id=? AND technique_id=?",
+                (json.dumps(entries), me["id"], tech["id"]),
+            )
         entry_str = ", ".join(e["name"] for e in core_cbt.ENTRY_POOL if e["key"] in entries) or "none"
         embed = discord.Embed(
             title=f"🎲 Entries Rerolled: {tech['name']}",

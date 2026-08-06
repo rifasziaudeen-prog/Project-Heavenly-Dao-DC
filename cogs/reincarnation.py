@@ -108,37 +108,40 @@ class ReincarnationCog(commands.Cog):
         if not view.confirmed:
             return
 
-        # Execute Rebirth DB transaction
+        # Execute the Rebirth as a single transaction: the cultivator reset,
+        # the inventory wipe, and the log entry all commit together — or a
+        # crash mid-sequence leaves the player exactly as they were.
         updates, log_entry = core_reinc.execute_rebirth_payload(row, inventory, reason="voluntary")
 
-        # 1. Update cultivator
-        set_clauses = ", ".join(f"{k}=?" for k in updates.keys())
-        params = list(updates.values()) + [row["id"]]
-        await self.bot.db.execute(f"UPDATE cultivators SET {set_clauses} WHERE id=?", params)
+        async with self.bot.db.transaction():
+            # 1. Update cultivator
+            set_clauses = ", ".join(f"{k}=?" for k in updates.keys())
+            params = list(updates.values()) + [row["id"]]
+            await self.bot.db.execute(f"UPDATE cultivators SET {set_clauses} WHERE id=?", params)
 
-        # 2. Clear non-talisman/non-charm items from inventory
-        await self.bot.db.execute(
-            "DELETE FROM items WHERE owner_id=? AND item_type != 'Talisman'",
-            (row["id"],),
-        )
+            # 2. Clear non-talisman/non-charm items from inventory
+            await self.bot.db.execute(
+                "DELETE FROM items WHERE owner_id=? AND item_type != 'Talisman'",
+                (row["id"],),
+            )
 
-        # 3. Log reincarnation
-        await self.bot.db.execute(
-            "INSERT INTO reincarnation_log (cultivator_id, cycle_from, cycle_to, reason, realm_tier_at_death, realm_sub_stage_at_death, comprehension_retained, luck_retained, technique_retained, epitaph)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?)",
-            (
-                log_entry["cultivator_id"],
-                log_entry["cycle_from"],
-                log_entry["cycle_to"],
-                log_entry["reason"],
-                log_entry["realm_tier_at_death"],
-                log_entry["realm_sub_stage_at_death"],
-                log_entry["comprehension_retained"],
-                log_entry["luck_retained"],
-                log_entry["technique_retained"],
-                log_entry["epitaph"],
-            ),
-        )
+            # 3. Log reincarnation
+            await self.bot.db.execute(
+                "INSERT INTO reincarnation_log (cultivator_id, cycle_from, cycle_to, reason, realm_tier_at_death, realm_sub_stage_at_death, comprehension_retained, luck_retained, technique_retained, epitaph)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (
+                    log_entry["cultivator_id"],
+                    log_entry["cycle_from"],
+                    log_entry["cycle_to"],
+                    log_entry["reason"],
+                    log_entry["realm_tier_at_death"],
+                    log_entry["realm_sub_stage_at_death"],
+                    log_entry["comprehension_retained"],
+                    log_entry["luck_retained"],
+                    log_entry["technique_retained"],
+                    log_entry["epitaph"],
+                ),
+            )
 
         pub_embed = discord.Embed(
             title=ui.format_title(f"⚡ {row['username']} Has Chosen Rebirth! · 舍身入轮回", lang),

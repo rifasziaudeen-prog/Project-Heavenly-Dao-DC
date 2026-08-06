@@ -5,6 +5,55 @@ All notable changes to the **Heavenly Dao Engine** are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.0] — 2026-08-06 — Crash-Safe Economy · 铁律账本 🛡️
+
+### Added
+
+- **`db.transaction()` — crash-atomic write blocks.** Every multi-step
+  money/item flow now runs inside a single SQLite transaction
+  (BEGIN → statements → COMMIT, or ROLLBACK on any failure). A crash in the
+  middle of a purchase, bid, reincarnation, or duel settle can no longer
+  leave partial state — no more "charged but never paid", "listed but fee
+  eaten", or "reborn but kept the items".
+  - Reentrant write lock: background loops (auction sweep, Stored-Qi regen,
+    Qi flush) wait for an open transaction instead of being absorbed into it.
+  - Nested transactions use SAVEPOINTs — an inner failure rolls back only
+    itself.
+  - `execute()`/`executemany()` keep their auto-commit behaviour outside
+    transactions, so the 264-test suite (now 276) ran unchanged.
+
+### Changed
+
+- **Auction** — `/sell`, `/buy`, `/bid`, `/cancel_listing`, `/trade_accept`,
+  and the expiry **sweep** are now atomic. Guarded claims (the
+  `WHERE status='active'` + rowcount race checks) move INSIDE the transaction
+  and raise on a lost race, so the money movement and the claim can never be
+  torn apart by a crash.
+- **Combat** — duel settle (titles + Heart Demon + wager payout + log),
+  draw refunds, battle rewards, `/learn`, `/reroll`, intent spending, and
+  cultivation-base burns are atomic.
+- **Sects** — founding, disbanding, donating, and array bursts are atomic.
+- **Reincarnation** — the rebirth reset, inventory wipe, and log entry
+  commit as one unit.
+- **Fixed a latent crash** — `_force_retreat` routed to a non-existent
+  `_end_combat`; burn-deviation now correctly ends the duel/battle.
+
+### Tests
+
+- `tests/test_database.py` (9 new): commit, rollback, crash simulation,
+  savepoint nesting, and cross-task absorption guard.
+- `tests/test_integration.py` (4 new): `/buy` happy path, mid-transaction
+  crash leaves no partial state, the lost-claim race reports cleanly, and
+  the expiry sweep crash-rolls back.
+
+### Deferred (explicitly out of scope for v1.15.0)
+
+Single-player or log-heavy multi-step flows (world-boss `/event_claim` and
+`/event_attack`, `/breakthrough` rewards, Dao Bond severance, alchemy
+refinement) still use per-statement commits. They carry lower partial-state
+risk (no two-party escrow), but can be wrapped with the same helper in a
+future release.
+
 ## [1.14.0] — 2026-08-06 — Newbie Foundations · 入门根基 🌱
 
 ### Added
